@@ -44,3 +44,6 @@ next-env.d.ts
 # editor
 .vscode/settings.json
 .idea/
+
+# kiro IDE files
+.kiro/
