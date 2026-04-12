@@ -96,7 +96,7 @@ export class PitchShifter {
       audioBuffer.sampleRate
     );
     for (let c = 0; c < outputChannels.length; c++) {
-      outputBuffer.copyToChannel(outputChannels[c], c);
+      outputBuffer.copyToChannel(new Float32Array(outputChannels[c]), c);
     }
 
     return outputBuffer;
