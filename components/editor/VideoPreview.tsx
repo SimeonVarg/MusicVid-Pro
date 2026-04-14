@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { VideoOff } from 'lucide-react';
+import { VideoOff, Maximize2 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
 import { MetronomeOverlay } from './MetronomeOverlay';
 
@@ -47,7 +47,7 @@ function getClipFadeOpacity(currentTime: number, track: {
   return Math.max(0, Math.min(1, Math.min(fadeInOpacity, fadeOutOpacity)));
 }
 
-export function VideoPreview() {
+export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; detached?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const loadedAudioUrls = useRef<Record<string, string>>({});
@@ -275,6 +275,16 @@ export function VideoPreview() {
         }
       }}
     >
+      {/* Detach button â€” shown on hover */}
+      {onDetach && !detached && (
+        <button
+          onClick={onDetach}
+          title="Pop out preview"
+          className="absolute right-2 top-2 z-20 rounded-lg border border-zinc-700 bg-zinc-900/80 p-1.5 text-zinc-400 opacity-0 backdrop-blur-sm transition-opacity hover:text-zinc-100 [.relative:hover_&]:opacity-100"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       {activeVideoLayers.length > 0 ? (
         activeVideoLayers.map((track, index) => {
           const isSelected = track.id === selectedVideoTrackId;
@@ -441,7 +451,7 @@ export function VideoPreview() {
             {videoTracks.length} video track{videoTracks.length !== 1 ? 's' : ''}
           </div>
           <div className="text-zinc-400 text-xs">
-            {dimensions.width} × {dimensions.height}
+            {dimensions.width} ÃƒÆ’Ã¢â‚¬â€ {dimensions.height}
           </div>
         </div>
       )}

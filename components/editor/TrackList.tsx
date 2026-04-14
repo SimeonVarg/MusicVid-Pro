@@ -179,96 +179,84 @@ export function TrackList() {
         {activeMenu === 'tracks' && (
           <>
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wide text-zinc-400">Tracks</span>
-              <span className="text-xs text-zinc-500">{allTracks.length} total</span>
+              <span className="section-label">Tracks</span>
+              <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{allTracks.length}</span>
             </div>
 
             {allTracks.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-900/40 px-4 text-center text-sm text-zinc-500">
-                <Film className="mb-3 h-8 w-8 opacity-40" />
-                <p>No tracks yet</p>
-                <p className="mt-1 text-xs">Upload media or add text to get started</p>
+              <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center">
+                <Film className="mb-3 h-8 w-8 text-zinc-700" />
+                <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
+                <p className="mt-1 text-xs text-zinc-600">Upload media or add text to get started</p>
               </div>
             ) : (
-              <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin pr-1">
+              <div className="flex-1 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
                 {allTracks.map((track) => {
                   const isSelected = selectedTrackIds.includes(track.id);
                   const isAudio = track.type === 'audio';
                   const isText = track.type === 'text';
+                  const iconColor = isText ? 'text-pink-400' : isAudio ? 'text-purple-400' : 'text-cyan-400';
 
                   return (
                     <div
                       key={track.id}
                       onClick={() => handleTrackClick(track.id)}
-                      className={`group cursor-pointer rounded-lg border p-2 transition-all ${
+                      className={`group cursor-pointer rounded-lg border px-2.5 py-2 transition-all ${
                         isSelected
-                          ? 'border-purple-500 bg-purple-600/20'
-                          : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
+                          ? 'border-purple-500/60 bg-purple-600/15 ring-1 ring-purple-500/20'
+                          : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-800/60'
                       }`}
                     >
-                      <div className="flex items-start gap-2">
-                        <div className={`mt-0.5 ${isText ? 'text-pink-400' : isAudio ? 'text-purple-400' : 'text-cyan-400'}`}>
-                          {isText ? <Type className="h-4 w-4" /> : isAudio ? <Music className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+                      <div className="flex items-center gap-2">
+                        <div className={`shrink-0 ${iconColor}`}>
+                          {isText ? <Type className="h-3.5 w-3.5" /> : isAudio ? <Music className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{track.name}</div>
-                          <div className="mt-1 text-xs text-zinc-500">
-                            {track.duration.toFixed(2)}s
-                            {isAudio && 'bpm' in track && <> • {track.bpm.toFixed(1)} BPM</>}
-                            {isText && 'text' in track && <> • {track.text.slice(0, 16)}</>}
+                          <div className="truncate text-xs font-medium text-zinc-200">{track.name}</div>
+                          <div className="mt-0.5 text-[10px] text-zinc-500">
+                            {track.duration.toFixed(1)}s
+                            {isAudio && 'bpm' in track && <> &middot; {track.bpm.toFixed(0)} BPM</>}
+                            {isText && 'text' in track && <> &middot; {track.text.slice(0, 12)}</>}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleMute(track.id, track.type, track.isMuted);
-                            }}
+                        <div className={`flex items-center gap-0.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <button
+                            className={`rounded p-1 transition-colors hover:bg-zinc-700 ${track.isMuted ? 'text-zinc-500' : 'text-zinc-400'}`}
+                            onClick={(e) => { e.stopPropagation(); toggleMute(track.id, track.type, track.isMuted); }}
                             title={track.isMuted ? 'Unmute' : 'Mute'}
                           >
                             {track.isMuted ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                          </Button>
+                          </button>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleLock(track.id, track.type, track.isLocked);
-                            }}
+                          <button
+                            className={`rounded p-1 transition-colors hover:bg-zinc-700 ${track.isLocked ? 'text-amber-400' : 'text-zinc-400'}`}
+                            onClick={(e) => { e.stopPropagation(); toggleLock(track.id, track.type, track.isLocked); }}
                             title={track.isLocked ? 'Unlock' : 'Lock'}
                           >
                             {track.isLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                          </Button>
+                          </button>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-red-400 hover:text-red-300"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setPendingDeleteId(track.id);
-                            }}
+                          <button
+                            className="rounded p-1 text-zinc-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                            onClick={(e) => { e.stopPropagation(); setPendingDeleteId(track.id); }}
                             title="Delete"
                           >
                             <Trash2 className="h-3 w-3" />
-                          </Button>
+                          </button>
                         </div>
                       </div>
 
-                      <div className="mt-2 flex gap-1">
-                        {track.isMuted && <span className="rounded bg-zinc-700 px-2 py-0.5 text-xs text-zinc-300">Muted</span>}
-                        {track.isLocked && <span className="rounded bg-zinc-700 px-2 py-0.5 text-xs text-zinc-300">Locked</span>}
-                        {isAudio && 'isMaster' in track && track.isMaster && (
-                          <span className="rounded bg-purple-600 px-2 py-0.5 text-xs text-zinc-300">Master</span>
-                        )}
-                      </div>
+                      {(track.isMuted || track.isLocked || (isAudio && 'isMaster' in track && track.isMaster)) && (
+                        <div className="mt-1.5 flex gap-1">
+                          {track.isMuted && <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">Muted</span>}
+                          {track.isLocked && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">Locked</span>}
+                          {isAudio && 'isMaster' in track && track.isMaster && (
+                            <span className="rounded-full bg-purple-600/20 px-2 py-0.5 text-[10px] text-purple-300">Master</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -277,6 +265,7 @@ export function TrackList() {
           </>
         )}
       </div>
+
 
       <Dialog open={isTextModalOpen} onOpenChange={setIsTextModalOpen}>
         <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">

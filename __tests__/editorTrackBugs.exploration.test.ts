@@ -108,7 +108,7 @@ describe('Bug 2 — Undo After Video Speed Change (exploration)', () => {
    * audio URL-sync pattern in the same component.
    */
   function simulateVideoPreviewUrlSync_fixed(
-    videoElement: { src: string; load: ReturnType<typeof vi.fn> },
+    videoElement: { src: string; load: () => void },
     newUrl: string
   ): void {
     // Fixed useEffect: if src differs from the new URL, update and reload
@@ -226,3 +226,4 @@ describe('Bug 3 — Transpose Non-Functional (exploration)', () => {
     expect(pitchShiftTrack).toHaveBeenCalled();
   });
 });
+

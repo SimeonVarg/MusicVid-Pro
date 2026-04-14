@@ -1,65 +1,81 @@
-// components/editor/TimeDisplay.tsx PASTED
+// components/editor/TimeDisplay.tsx
 'use client';
 
 import { useEditorStore } from '@/stores/editorStore';
-import { Clock } from 'lucide-react';
+
+function formatTime(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 100);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+}
+
+function formatMusical(seconds: number, bpm: number, numerator: number) {
+  const beatsPerSecond = bpm / 60;
+  const totalBeats = seconds * beatsPerSecond;
+  const bar = Math.floor(totalBeats / numerator) + 1;
+  const beat = Math.floor(totalBeats % numerator) + 1;
+  const tick = Math.floor((totalBeats % 1) * 960);
+  return `${bar}.${beat}.${tick.toString().padStart(3, '0')}`;
+}
 
 export function TimeDisplay() {
   const { timeline, musical, timeDisplayMode, setTimeDisplayMode } = useEditorStore();
+  const { currentTime, duration } = timeline;
+  const { bpm, timeSignature } = musical;
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 100);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-  };
+  const timeStr = formatTime(currentTime);
+  const musicalStr = formatMusical(currentTime, bpm, timeSignature.numerator);
+  const durationStr = formatTime(duration);
 
-  const getMusicalPosition = (seconds: number) => {
-    const { bpm, timeSignature } = musical;
-    const beatsPerSecond = bpm / 60;
-    const totalBeats = seconds * beatsPerSecond;
-    const beatsPerBar = timeSignature.numerator;
-    
-    const bar = Math.floor(totalBeats / beatsPerBar) + 1;
-    const beat = Math.floor(totalBeats % beatsPerBar) + 1;
-    const tick = Math.floor((totalBeats % 1) * 960); // 960 ticks per beat (MIDI standard)
-    
-    return `${bar}.${beat}.${tick.toString().padStart(3, '0')}`;
-  };
-
-  const formatSeconds = (seconds: number) => {
-    return `${seconds.toFixed(2)}s`;
-  };
+  const isTime = timeDisplayMode === 'seconds';
+  const isMusical = timeDisplayMode === 'musical';
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-1.5 py-1">
-      <Clock className="h-4 w-4 shrink-0 text-zinc-400" />
+    <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900 px-1.5 py-1">
+      {/* Time mode button */}
       <button
         type="button"
         onClick={() => setTimeDisplayMode('seconds')}
-        className={`flex h-9 w-[4.75rem] flex-col items-start justify-center rounded-md px-1.5 text-left transition-colors ${
-          timeDisplayMode === 'seconds' ? 'bg-zinc-700' : 'hover:bg-zinc-700/60'
+        className={`flex h-9 w-[5.5rem] flex-col items-start justify-center rounded-md px-2 text-left transition-colors ${
+          isTime ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
         }`}
+        title="Switch to time display"
       >
-        <span className="text-[9px] uppercase tracking-wide text-zinc-400">Time</span>
-        <span className="w-full truncate text-xs font-mono font-semibold text-zinc-100">
-          {formatTime(timeline.currentTime)}
+        <span className="section-label leading-none">Time</span>
+        <span className="mt-1 w-full truncate font-mono text-xs font-semibold text-zinc-100">
+          {timeStr}
         </span>
       </button>
+
+      {/* Divider */}
+      <div className="h-6 w-px bg-zinc-800" />
+
+      {/* Musical position button */}
       <button
         type="button"
         onClick={() => setTimeDisplayMode('musical')}
-        className={`flex h-9 w-[4.75rem] flex-col items-start justify-center rounded-md px-1.5 text-left transition-colors ${
-          timeDisplayMode === 'musical' ? 'bg-zinc-700' : 'hover:bg-zinc-700/60'
+        className={`flex h-9 w-[5.5rem] flex-col items-start justify-center rounded-md px-2 text-left transition-colors ${
+          isMusical ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
         }`}
+        title="Switch to musical position display"
       >
-        <span className="text-[9px] uppercase tracking-wide text-zinc-400">Position</span>
-        <span className="w-full truncate text-xs font-mono font-semibold text-purple-400">
-          {timeDisplayMode === 'musical'
-            ? getMusicalPosition(timeline.currentTime)
-            : formatSeconds(timeline.currentTime)}
+        <span className="section-label leading-none">Bar.Beat</span>
+        <span className="mt-1 w-full truncate font-mono text-xs font-semibold text-purple-400">
+          {musicalStr}
         </span>
       </button>
+
+      {/* Divider */}
+      <div className="h-6 w-px bg-zinc-800" />
+
+      {/* Duration (read-only) */}
+      <div className="flex h-9 w-[4.5rem] flex-col items-start justify-center px-2">
+        <span className="section-label leading-none">Duration</span>
+        <span className="mt-1 w-full truncate font-mono text-xs font-semibold text-zinc-500">
+          {durationStr}
+        </span>
+      </div>
     </div>
   );
 }

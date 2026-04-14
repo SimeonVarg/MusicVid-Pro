@@ -318,8 +318,8 @@ export function InspectorPanel() {
         <button
           type="button"
           onClick={() => setActiveTab('inspect')}
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
-            activeTab === 'inspect' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            activeTab === 'inspect' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300'
           }`}
         >
           <Sliders className="h-4 w-4" />
@@ -329,8 +329,8 @@ export function InspectorPanel() {
           data-tutorial="inspector-adjust"
           type="button"
           onClick={() => setActiveTab('adjust')}
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
-            activeTab === 'adjust' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            activeTab === 'adjust' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300'
           }`}
         >
           <Settings2 className="h-4 w-4" />
@@ -347,7 +347,7 @@ export function InspectorPanel() {
         {!selectedTrack ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
             <Sliders className="mb-4 h-12 w-12 opacity-50" />
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Inspector</h3>
+            <h3 className="section-label">Inspector</h3>
             <p className="mt-2 text-sm">Select a track to view properties</p>
           </div>
         ) : activeTab === 'inspect' ? (
@@ -380,7 +380,7 @@ export function InspectorPanel() {
 
             {selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">
-                <h4 className="mb-4 font-semibold">Text Style</h4>
+                <h4 className="section-label mb-3">Text Style</h4>
 
                 <div className="space-y-4">
                   <div>
@@ -559,7 +559,7 @@ export function InspectorPanel() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
+                  <div className="panel-inset p-3 text-xs text-zinc-400">
                     Drag the text directly on the preview to reposition it.
                   </div>
                 </div>
@@ -588,7 +588,7 @@ export function InspectorPanel() {
 
             {selectedVideoTrack && !selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">
-                <h4 className="mb-4 font-semibold">Transitions</h4>
+                <h4 className="section-label mb-3">Transitions</h4>
                 <div className="space-y-4">
                   <div>
                     <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
@@ -632,7 +632,7 @@ export function InspectorPanel() {
                     />
                   </div>
 
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
+                  <div className="panel-inset p-3 text-xs text-zinc-400">
                     Fades are previewed live and will be expanded into export transitions in the next pass.
                   </div>
                 </div>
@@ -641,7 +641,7 @@ export function InspectorPanel() {
 
             {selectedVideoTrack && !selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">
-                <h4 className="mb-4 font-semibold">Video Effects</h4>
+                <h4 className="section-label mb-3">Video Effects</h4>
                 <div className="space-y-2">
                   <Button
                     variant="outline"
@@ -669,7 +669,7 @@ export function InspectorPanel() {
                     Stabilization
                   </Button>
 
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
+                  <div className="panel-inset p-3 text-xs text-zinc-400">
                     These toggles apply visible preview-side effects only in this pass.
                   </div>
                 </div>
@@ -678,7 +678,7 @@ export function InspectorPanel() {
 
             {selectedVideoTrack && !selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">
-                <h4 className="mb-4 font-semibold">Auto-Cut on Beats</h4>
+                <h4 className="section-label mb-3">Auto-Cut on Beats</h4>
                 <div className="space-y-3">
                   <div>
                     <Label className="mb-2 block text-xs text-zinc-400">Audio Source</Label>
@@ -970,7 +970,7 @@ export function InspectorPanel() {
                 </div>
 
                 {!selectedAudioTrack && linkedAudioTrack && (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
+                  <div className="panel-inset p-3 text-xs text-zinc-400">
                     Using linked audio track <span className="font-mono text-zinc-200">{linkedAudioTrack.name}</span> for BPM adjustment.
                   </div>
                 )}
@@ -1072,7 +1072,7 @@ export function InspectorPanel() {
               </div>
             ) : (
               <div className="border-t border-zinc-800 pt-6">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
+                <div className="panel-inset p-3 text-xs text-zinc-400">
                   Pitch controls are available after selecting an audio track.
                 </div>
               </div>
@@ -1080,7 +1080,7 @@ export function InspectorPanel() {
 
             {adjustmentTrack && (
               <div className="border-t border-zinc-800 pt-6">
-                <h4 className="mb-3 font-semibold">Sync Options</h4>
+                <h4 className="section-label mb-3">Sync Options</h4>
                 <div className="space-y-2">
                   <Button
                     variant="outline"
