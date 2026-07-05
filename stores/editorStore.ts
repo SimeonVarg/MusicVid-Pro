@@ -1762,3 +1762,8 @@ export const useEditorStore = create<EditorState>()(
     )
   )
 );
+
+// Dev-only handle for driving the editor from the console / automated tests.
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as Record<string, unknown>).__editorStore = useEditorStore;
+}

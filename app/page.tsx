@@ -152,7 +152,7 @@ export default function Home() {
               Launch Editor — it&apos;s free
             </Link>
             <a
-              href="https://github.com"
+              href="https://github.com/SimeonVarg/MusicVid-Pro"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-8 py-3.5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"

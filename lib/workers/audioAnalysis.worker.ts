@@ -53,22 +53,26 @@ function detectBPM(channelData: Float32Array, sampleRate: number): number {
     }
   }
 
-  // Intervals histogram
+  // Intervals histogram. Accept peak spacings corresponding to 40–220 BPM —
+  // with 50ms hops that is ~5–30 hops. (The old 20–200 hop window only allowed
+  // 6–60 BPM, so every real song fell through to the fallback bin.)
+  const timePerWindow = hopSize / sampleRate;
+  const minInterval = Math.max(1, Math.floor(60 / 220 / timePerWindow));
+  const maxInterval = Math.ceil(60 / 40 / timePerWindow);
   const histogram = new Map<number, number>();
   for (let i = 1; i < peaks.length; i++) {
     const interval = peaks[i] - peaks[i - 1];
-    if (interval >= 20 && interval <= 200) {
+    if (interval >= minInterval && interval <= maxInterval) {
       histogram.set(interval, (histogram.get(interval) ?? 0) + 1);
     }
   }
 
   let maxCount = 0;
-  let peakBin = 60;
+  let peakBin = Math.round(60 / 120 / timePerWindow); // fallback → 120 BPM
   histogram.forEach((count, bin) => {
     if (count > maxCount) { maxCount = count; peakBin = bin; }
   });
 
-  const timePerWindow = hopSize / sampleRate;
   return Math.round(60 / (peakBin * timePerWindow));
 }
 

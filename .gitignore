@@ -47,3 +47,7 @@ next-env.d.ts
 
 # kiro IDE files
 .kiro/
+
+# local test media
+public/__test-*
+
