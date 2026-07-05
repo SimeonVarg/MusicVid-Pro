@@ -536,7 +536,6 @@ export class VideoProcessor {
     duration: number,
     position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right'
   ): Promise<Blob> {
-    const beatsPerSecond = bpm / 60;
     const posMap: Record<string, { x: string; y: string }> = {
       'top-right': { x: 'w-80', y: '20' },
       'top-left': { x: '20', y: '20' },
@@ -544,16 +543,23 @@ export class VideoProcessor {
       'bottom-left': { x: '20', y: 'h-80' },
     };
     const { x, y } = posMap[position] ?? posMap['top-right'];
-    const flashExpression = `if(mod(floor(t*${beatsPerSecond}),${timeSignature.numerator}),0.3,1.0)`;
-    const filterComplex = `[0:v]drawbox=x=${x}:y=${y}:w=60:h=60:color=purple@${flashExpression}:t=fill[outv]`;
+    // drawbox alpha must be a constant — expressions after '@' abort the filter
+    // graph. Pulse the box via the 'enable' timeline expression instead: visible
+    // for the first 150ms of every beat, with a brighter box on bar downbeats.
+    const beatInterval = 60 / Math.max(1, bpm);
+    const barInterval = beatInterval * Math.max(1, timeSignature.numerator);
+    const flashDuration = Math.min(0.15, beatInterval / 2).toFixed(6);
+    const beatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=purple@0.55:t=fill:enable='lt(mod(t,${beatInterval.toFixed(6)}),${flashDuration})'`;
+    const downbeatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=violet@0.9:t=fill:enable='lt(mod(t,${barInterval.toFixed(6)}),${flashDuration})'`;
+    const filterComplex = `[0:v]${beatBox},${downbeatBox}[outv]`;
 
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
       await ffmpeg.writeFile('metro-input.mp4', await fetchFile(videoFile));
       await ffmpeg.exec([
         '-i', 'metro-input.mp4',
         '-filter_complex', filterComplex,
-        '-map', '[outv]', '-map', '0:a',
-        '-c:v', 'libx264', '-c:a', 'copy', '-y', 'metro-output.mp4',
+        '-map', '[outv]', '-map', '0:a?',
+        '-c:v', 'libx264', '-preset', 'superfast', '-c:a', 'copy', '-y', 'metro-output.mp4',
       ]);
       const data = await ffmpeg.readFile('metro-output.mp4') as Uint8Array;
       try { await ffmpeg.deleteFile('metro-input.mp4'); } catch { /* ignore */ }

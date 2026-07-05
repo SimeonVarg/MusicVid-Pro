@@ -15,7 +15,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 
-const FFMPEG_CORE_BASE = 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd';
+// Self-hosted first (true to the "nothing leaves your device" promise and immune
+// to conference wifi); unpkg only as a fallback for deployments missing the assets.
+const FFMPEG_CORE_BASES = [
+  '/ffmpeg',
+  'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd',
+];
 
 export class MediaJobQueue {
   private static instance: MediaJobQueue | null = null;
@@ -34,8 +39,16 @@ export class MediaJobQueue {
   static getInstance(): MediaJobQueue {
     if (!MediaJobQueue.instance) {
       MediaJobQueue.instance = new MediaJobQueue();
+      if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        (window as unknown as Record<string, unknown>).__mediaJobQueue = MediaJobQueue.instance;
+      }
     }
     return MediaJobQueue.instance;
+  }
+
+  /** Dev/diagnostics: the underlying FFmpeg instance (e.g. to attach log listeners). */
+  get engine(): FFmpeg {
+    return this.ffmpeg;
   }
 
   /** Exposed for tests / diagnostics only. */
@@ -49,12 +62,29 @@ export class MediaJobQueue {
 
     if (!this.loadPromise) {
       this.loadPromise = (async () => {
-        await this.ffmpeg.load({
-          coreURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
-        });
-        this.loaded = true;
+        let lastError: unknown = null;
+        for (const base of FFMPEG_CORE_BASES) {
+          try {
+            await this.ffmpeg.load({
+              coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+              wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+            });
+            this.loaded = true;
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError instanceof Error
+          ? lastError
+          : new Error('Failed to load the media engine. Check your connection and try again.');
       })();
+
+      // Reset on failure so a later attempt (e.g. after wifi recovers) can retry
+      // instead of awaiting a permanently rejected promise.
+      this.loadPromise.catch(() => {
+        this.loadPromise = null;
+      });
     }
 
     await this.loadPromise;

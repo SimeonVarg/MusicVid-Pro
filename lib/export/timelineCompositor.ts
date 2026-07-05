@@ -71,11 +71,14 @@ export interface CompositorOutput {
   outputArgs: string[];
 }
 
+// x264 'superfast': in single-threaded WASM, 'medium' encodes at ~0.1x realtime —
+// minutes for a 30s clip. At these generous bitrates the quality difference is
+// invisible, and exports finish ~5x sooner.
 export const EXPORT_PRESETS: Record<string, ExportPreset> = {
-  youtube: { resolution: '1920:1080', bitrate: '8M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'medium' },
-  'instagram-feed': { resolution: '1080:1080', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'medium' },
-  'instagram-story': { resolution: '1080:1920', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'medium' },
-  tiktok: { resolution: '1080:1920', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'medium' },
+  youtube: { resolution: '1920:1080', bitrate: '8M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'superfast' },
+  'instagram-feed': { resolution: '1080:1080', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'superfast' },
+  'instagram-story': { resolution: '1080:1920', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'superfast' },
+  tiktok: { resolution: '1080:1920', bitrate: '5M', audioCodec: 'aac', videoCodec: 'libx264', preset: 'superfast' },
 };
 
 export class TimelineCompositor {
