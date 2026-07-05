@@ -196,6 +196,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
 
       if (timeline.isPlaying && !isInExtendedFreezeRange) {
         video.play().catch((err) => {
+          // AbortError is the benign play()/pause() race during scrubbing.
+          if (err instanceof DOMException && err.name === 'AbortError') return;
           console.error('Video play failed:', err);
         });
       } else {
@@ -275,7 +277,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         }
       }}
     >
-      {/* Detach button â€” shown on hover */}
+      {/* Detach button — shown on hover */}
       {onDetach && !detached && (
         <button
           onClick={onDetach}
@@ -451,7 +453,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
             {videoTracks.length} video track{videoTracks.length !== 1 ? 's' : ''}
           </div>
           <div className="text-zinc-400 text-xs">
-            {dimensions.width} ÃƒÆ’Ã¢â‚¬â€ {dimensions.height}
+            {dimensions.width} × {dimensions.height}
           </div>
         </div>
       )}

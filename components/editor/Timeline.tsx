@@ -62,6 +62,10 @@ export function Timeline() {
   const maxScroll = Math.max(0, contentWidth - trackViewportWidth);
   const clampedScroll = Math.max(-maxScroll, Math.min(0, timeline.scrollX));
   const stagePixelRatio = typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1;
+  // Konva draws shadowed shapes through the stage's buffer canvas; rendering the
+  // Stage while the container measures 0x0 makes that canvas zero-sized and every
+  // clip draw throws InvalidStateError (drawImage of a 0-size canvas).
+  const hasMeasuredViewport = dimensions.width >= 2 && dimensions.height >= 2;
 
 
   const setZoomAnchored = (nextZoomValue: number, anchorX?: number) => {
@@ -279,6 +283,7 @@ export function Timeline() {
 
   return (
     <div data-tutorial="timeline" ref={containerRef} className="w-full h-full relative overflow-hidden">
+      {hasMeasuredViewport && (
       <Stage
         ref={stageRef}
         width={dimensions.width}
@@ -374,6 +379,7 @@ export function Timeline() {
           />
         </Layer>
       </Stage>
+      )}
 
       <div className="absolute bottom-0 left-0 border-t border-zinc-800 bg-zinc-900/90 px-3 py-2" style={{ right: showVerticalScrollbar ? V_SCROLLBAR_WIDTH : 0 }}>
         <input

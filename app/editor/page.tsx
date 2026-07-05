@@ -40,6 +40,48 @@ export default function EditorPage() {
 
   const saved = useRef(loadLayout());
 
+  // Drag-and-drop media import — the first thing a new user tries.
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragDepth = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setIsDragOver(false);
+    const files = [...e.dataTransfer.files];
+    if (files.length === 0) return;
+    const { addVideoTrack, addAudioTrack } = useEditorStore.getState();
+    for (const file of files) {
+      if (file.type.startsWith('video/')) {
+        await addVideoTrack(file);
+      } else if (file.type.startsWith('audio/')) {
+        await addAudioTrack(file);
+      } else {
+        useEditorStore.setState({
+          lastError: `"${file.name}" isn't a video or audio file — try MP4, MOV, MP3, or WAV.`,
+        });
+      }
+    }
+  }, []);
+
   // Panel sizes
   const trackList = usePanelResize({
     initial: saved.current?.trackListWidth ?? 280,
@@ -94,14 +136,28 @@ export default function EditorPage() {
 
   return (
     <EditorErrorBoundary>
-      <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+      <div
+        className="relative flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
+            <div className="rounded-2xl border-2 border-dashed border-purple-500 bg-zinc-900/90 px-10 py-8 text-center">
+              <p className="text-lg font-semibold text-zinc-100">Drop to import</p>
+              <p className="mt-1 text-sm text-zinc-400">Video and audio files land on the timeline instantly</p>
+            </div>
+          </div>
+        )}
         <Toolbar />
 
         <div className="flex flex-1 overflow-hidden">
           {/* ── TrackList ── */}
           <div
             className="flex-shrink-0 overflow-hidden border-r border-zinc-800 bg-zinc-900"
-            style={{ width: trackList.size }}
+            style={{ width: trackList.size, maxWidth: '28vw' }}
           >
             <TrackList />
           </div>
@@ -115,7 +171,7 @@ export default function EditorPage() {
             {!previewDetached ? (
               <div
                 className="relative flex shrink-0 items-center justify-center border-b border-zinc-800 bg-black"
-                style={{ height: previewSplit.size }}
+                style={{ height: previewSplit.size, maxHeight: '55vh' }}
               >
                 <VideoPreview onDetach={handleDetach} />
               </div>
@@ -149,7 +205,7 @@ export default function EditorPage() {
           {/* ── Inspector ── */}
           <div
             className="flex-shrink-0 overflow-hidden border-l border-zinc-800 bg-zinc-900"
-            style={{ width: inspectorWidth }}
+            style={{ width: inspectorWidth, maxWidth: inspectorCollapsed ? undefined : '32vw' }}
           >
             <InspectorPanel />
           </div>

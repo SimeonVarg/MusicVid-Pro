@@ -187,7 +187,7 @@ export function TrackList() {
               <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center">
                 <Film className="mb-3 h-8 w-8 text-zinc-700" />
                 <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
-                <p className="mt-1 text-xs text-zinc-600">Upload media or add text to get started</p>
+                <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere — or use the + rail</p>
               </div>
             ) : (
               <div className="flex-1 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
