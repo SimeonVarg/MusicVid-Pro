@@ -75,7 +75,7 @@ export function BPMControl({ value, onChange }: BPMControlProps) {
         title="Tap Tempo (T)"
         className={`flex h-7 w-7 items-center justify-center rounded-md transition-all ${
           tapping
-            ? 'bg-purple-500 text-white scale-95'
+            ? 'bg-signal-400 text-zinc-950 scale-95'
             : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
         }`}
       >
@@ -96,7 +96,7 @@ export function BPMControl({ value, onChange }: BPMControlProps) {
           onChange={(e) => setTempValue(e.target.value)}
           onBlur={commitValue}
           onKeyDown={handleKeyDown}
-          className="mt-0.5 h-6 !w-12 border-0 bg-transparent px-0 text-center font-mono text-[11px] font-semibold text-purple-300 focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="mt-0.5 h-6 !w-12 border-0 bg-transparent px-0 text-center font-mono text-[11px] font-semibold text-signal-300 focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
       </div>
     </div>

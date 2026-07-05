@@ -358,7 +358,7 @@ export function InspectorPanel() {
                   {isTextTrack(selectedTrack) ? (
                     <span className="text-pink-400">T</span>
                   ) : isAudioTrack(selectedTrack) ? (
-                    <Music className="h-5 w-5 text-purple-500" />
+                    <Music className="h-5 w-5 text-signal-400" />
                   ) : (
                     <Video className="h-5 w-5 text-cyan-500" />
                   )}
@@ -735,7 +735,7 @@ export function InspectorPanel() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {selectedAudioTrack || linkedAudioTrack ? (
-                    <Music className="h-5 w-5 text-purple-500" />
+                    <Music className="h-5 w-5 text-signal-400" />
                   ) : (
                     <Video className="h-5 w-5 text-cyan-500" />
                   )}
@@ -884,7 +884,7 @@ export function InspectorPanel() {
                       checked={bpmAdjustorPreservePitch}
                       onChange={(event) => setBpmAdjustorPreservePitch(event.target.checked)}
                       disabled={isAdjustingBpm || !adjustmentTrack}
-                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-purple-500"
+                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-signal-400"
                     />
                     Preserve Pitch
                   </label>
@@ -903,7 +903,7 @@ export function InspectorPanel() {
 
                 <Button
                   variant="default"
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  className="w-full bg-signal-400 text-zinc-950 hover:bg-signal-300"
                   onClick={commitBpm}
                   disabled={isAdjustingBpm || isProcessing || !canApplySpeedAdjustments}
                 >
@@ -998,7 +998,7 @@ export function InspectorPanel() {
                       isProcessing ? 'cursor-not-allowed opacity-40' : 'cursor-pointer opacity-100'
                     } ${
                       pitchEngine === 'rubberband'
-                        ? 'border-purple-500/30 bg-purple-500/20 text-purple-400'
+                        ? 'border-signal-400/30 bg-signal-400/15 text-signal-400'
                         : 'border-zinc-600 bg-zinc-700 text-zinc-400'
                     }`}
                   >
@@ -1017,7 +1017,7 @@ export function InspectorPanel() {
                 />
                 <div className="flex justify-between text-xs text-zinc-400 mb-4">
                   <span>-12</span>
-                  <span className="font-mono text-purple-300">current {(adjustmentTrack?.pitch ?? 0).toFixed(1)} st</span>
+                  <span className="font-mono text-signal-300">current {(adjustmentTrack?.pitch ?? 0).toFixed(1)} st</span>
                   <span>+12</span>
                 </div>
 
@@ -1040,7 +1040,7 @@ export function InspectorPanel() {
                     />
                     <Button
                       variant="default"
-                      className="bg-purple-600 hover:bg-purple-700 px-4"
+                      className="bg-signal-400 text-zinc-950 hover:bg-signal-300 px-4"
                       onClick={() => void commitPitch()}
                       disabled={isProcessing}
                     >
@@ -1049,7 +1049,7 @@ export function InspectorPanel() {
                   </div>
                   {isTransposing && (
                     <div className="space-y-1">
-                      <Progress value={transposeProgress} className="h-1.5 bg-zinc-800 [&>div]:bg-purple-500" />
+                      <Progress value={transposeProgress} className="h-1.5 bg-zinc-800 [&>div]:bg-signal-400" />
                       <p className="text-xs text-zinc-500">Pitch shifting with {pitchEngine === 'rubberband' ? 'Rubber Band' : 'Standard'} engine…</p>
                     </div>
                   )}

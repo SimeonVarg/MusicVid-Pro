@@ -48,7 +48,7 @@ export function MetronomeOverlay({
               i === currentBeat
                 ? i === 0
                   ? 'bg-red-500 scale-125'
-                  : 'bg-purple-500 scale-125'
+                  : 'bg-signal-400 scale-125'
                 : 'bg-zinc-700'
             }`}
             animate={{
@@ -68,7 +68,7 @@ export function MetronomeOverlay({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             className={`absolute top-0 right-0 w-16 h-16 rounded-full ${
-              currentBeat === 0 ? 'bg-red-500' : 'bg-purple-500'
+              currentBeat === 0 ? 'bg-red-500' : 'bg-signal-400'
             } blur-xl`}
           />
         )}

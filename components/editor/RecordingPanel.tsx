@@ -68,7 +68,7 @@ export function RecordingPanel({ onDone }: RecordingPanelProps) {
   if (isProcessing) {
     return (
       <div data-tutorial="recording-panel" className="flex flex-col items-center gap-3 py-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-signal-400 border-t-transparent" />
         <span className="text-sm text-zinc-400">Processing...</span>
       </div>
     );

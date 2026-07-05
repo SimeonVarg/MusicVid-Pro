@@ -80,8 +80,8 @@ export function Toolbar() {
 
           {/* Brand */}
           <div className="flex shrink-0 items-center gap-2 pr-1">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-600">
-              <Music className="h-3.5 w-3.5 text-white" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-signal-400">
+              <Music className="h-3.5 w-3.5 text-zinc-950" />
             </div>
             <span className="hidden text-sm font-bold tracking-tight lg:block">MusicVid Pro</span>
           </div>
@@ -103,7 +103,7 @@ export function Toolbar() {
             <Button
               variant="default"
               size="icon"
-              className="h-8 w-8 bg-purple-600 hover:bg-purple-500"
+              className="h-8 w-8 bg-signal-400 hover:bg-signal-300"
               onClick={timeline.isPlaying ? pause : play}
               title={timeline.isPlaying ? 'Pause (Space)' : 'Play (Space)'}
             >
@@ -162,7 +162,7 @@ export function Toolbar() {
               data-tutorial="toolbar-metronome"
               variant="ghost"
               size="icon"
-              className={`h-8 w-8 ${musical.showMetronome ? 'text-purple-400' : ''}`}
+              className={`h-8 w-8 ${musical.showMetronome ? 'text-signal-400' : ''}`}
               title={musical.showMetronome ? 'Hide Metronome (M)' : 'Show Metronome (M)'}
               onClick={() => setMetronomeVisibility(!musical.showMetronome)}
             >

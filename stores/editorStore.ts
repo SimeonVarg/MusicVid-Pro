@@ -1754,7 +1754,9 @@ export const useEditorStore = create<EditorState>()(
           musical: state.musical,
           timelineMarkers: state.timelineMarkers,
           timeDisplayMode: state.timeDisplayMode,
-          timeline: { ...state.timeline, isPlaying: false, currentTime: 0 },
+          // Tracks are never persisted, so a restored duration/scroll would
+          // render a stale empty timeline after reload.
+          timeline: { ...state.timeline, isPlaying: false, currentTime: 0, duration: 0, scrollX: 0 },
           exportSettings: state.exportSettings,
           pitchEngine: state.pitchEngine,
         }),

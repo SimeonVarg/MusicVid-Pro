@@ -10,7 +10,27 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        // "Signal" — the single accent of the product. VU-meter chartreuse
+        // on near-black; solid fills pair with dark text (text-zinc-950).
+        signal: {
+          50: '#f7ffe1',
+          100: '#ecffbf',
+          200: '#ddfb8b',
+          300: '#cdf25e',
+          400: '#b7e830',
+          500: '#a3d924',
+          600: '#84b31a',
+          700: '#648c12',
+          800: '#4a680f',
+          900: '#324a0c',
+          950: '#182605',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

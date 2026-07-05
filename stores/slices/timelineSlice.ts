@@ -59,7 +59,9 @@ export const timelineInitialState: TimelineSliceState = {
     bpm: 120,
     timeSignature: { numerator: 4, denominator: 4 },
     key: 'C',
-    showMetronome: true,
+    // Off by default: baking the metronome into exports doubles encode time
+    // and surprises first-time users. Toggle with M.
+    showMetronome: false,
     metronomeVolume: 0.5,
   },
   timeDisplayMode: 'seconds',

@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { useEditorStore, type TutorialMode } from '@/stores/editorStore';
 import { Button } from '@/components/ui/Button';
-import { Label } from '@/components/ui/Label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/RadioGroup';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +14,7 @@ import {
 
 export function TutorialLauncher() {
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<TutorialMode>('quick');
+  const selectedMode: TutorialMode = 'quick';
 
   const {
     tutorialShowWelcome,
@@ -70,33 +68,14 @@ export function TutorialLauncher() {
             </DialogDescription>
           </DialogHeader>
 
-          <RadioGroup
-            value={selectedMode}
-            onValueChange={(v) => setSelectedMode(v as TutorialMode)}
-            className="mt-2 gap-3"
-          >
-            <div className="flex items-start gap-3 rounded-lg border border-zinc-700 bg-zinc-800/50 p-3 cursor-pointer hover:border-zinc-600 transition-colors">
-              <RadioGroupItem value="quick" id="mode-quick" className="mt-0.5" />
-              <div>
-                <Label htmlFor="mode-quick" className="font-medium cursor-pointer">Quick Tour <span className="text-zinc-400 font-normal">(10 steps)</span></Label>
-                <p className="text-xs text-zinc-400 mt-0.5">The essentials — get up and running in a few minutes.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-lg border border-zinc-700 bg-zinc-800/50 p-3 cursor-pointer hover:border-zinc-600 transition-colors">
-              <RadioGroupItem value="dev" id="mode-dev" className="mt-0.5" />
-              <div>
-                <Label htmlFor="mode-dev" className="font-medium cursor-pointer">Dev Tour <span className="text-zinc-400 font-normal">(52 steps)</span></Label>
-                <p className="text-xs text-zinc-400 mt-0.5">Every feature, in depth. For power users and developers.</p>
-              </div>
-            </div>
-          </RadioGroup>
-
+          {/* First-run keeps it simple: just the Quick Tour. The 52-step Dev
+              Tour stays available from the ? button for power users. */}
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={handleSkipWelcome}>
               Skip for now
             </Button>
             <Button onClick={handleStartTutorial}>
-              Start
+              Take the tour <span className="ml-1 text-xs opacity-70">(2 min)</span>
             </Button>
           </div>
         </DialogContent>

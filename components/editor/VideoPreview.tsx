@@ -306,7 +306,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
           return (
             <div
               key={track.id}
-              className={`absolute ${isSelected ? 'ring-2 ring-purple-500' : ''}`}
+              className={`absolute ${isSelected ? 'ring-2 ring-signal-400' : ''}`}
               style={{
                 left: `${previewX}%`,
                 top: `${previewY}%`,
@@ -356,7 +356,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
               {isSelected && (
                 <button
                   type="button"
-                  className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize border border-zinc-900 bg-purple-500"
+                  className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize border border-zinc-900 bg-signal-400"
                   onMouseDown={(event) => {
                     event.stopPropagation();
                     setDragState({

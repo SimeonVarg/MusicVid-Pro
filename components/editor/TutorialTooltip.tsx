@@ -89,7 +89,7 @@ export function TutorialTooltip({
           <button
             tabIndex={2}
             onClick={onNext}
-            className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors font-medium"
+            className="text-xs px-3 py-1.5 rounded-lg bg-signal-400 text-zinc-950 hover:bg-signal-300 transition-colors font-medium"
           >
             {isLast ? 'Finish' : 'Next'}
           </button>

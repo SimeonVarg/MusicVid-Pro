@@ -65,7 +65,7 @@ export class EditorErrorBoundary extends React.Component<Props, State> {
             </button>
             <button
               onClick={this.handleReload}
-              className="rounded-md bg-purple-600 px-4 py-2 text-sm hover:bg-purple-700"
+              className="rounded-md bg-signal-400 px-4 py-2 text-sm hover:bg-signal-500"
             >
               Reload page
             </button>

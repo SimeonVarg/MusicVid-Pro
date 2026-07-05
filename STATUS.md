@@ -1,4 +1,33 @@
-# MusicVid Pro — Status (July 5, 2026 hardening session)
+# MusicVid Pro — Status (July 5, 2026: hardening + design sessions)
+
+## Round 2 (same day): design system + first-run polish
+
+- **Full de-slop.** One deliberate direction: "the editor as instrument" —
+  near-black zinc base, a single **signal chartreuse** accent (custom `signal`
+  scale in tailwind.config; solid fills always pair with dark text), Syne for
+  display headings, Archivo for UI, JetBrains Mono for timecode/badges. The
+  landing hero is now "Cut video like you play music." in Syne with a mono
+  status badge; the feature section is a ruled spec-sheet grid with mono index
+  numbers, not pastel cards. All 56 purple references across 23 editor files
+  swapped to signal (audio clips on the timeline are now lime, video cyan,
+  text pink). Exported metronome overlay boxes are chartreuse/white to match.
+- **"Load demo project" button** on the empty tracks panel: bundled 16s
+  brand-gradient clip (`public/demo/demo-clip.mp4`, 700KB) + a synthesized
+  120 BPM groove (`demo-track.mp3`, 87KB). Verified: loads in ~1s, BPM
+  detects exactly 120. The conference demo no longer depends on local files.
+- **Metronome overlay defaults OFF** (was on: doubled export time and put a
+  surprise flashing box in first exports). Toggle with M — turning it ON is
+  now a feature moment, not a trap.
+- **First-run modal simplified**: strangers see "Take the tour (2 min)" only;
+  the 52-step Dev Tour still lives behind the `?` button.
+- Stale persisted timeline duration cleared on reload.
+- Verified this round: landing + editor visuals in browser, demo-project
+  import, playback, full TikTok export end-to-end (single-pass, no metronome),
+  zero console errors, 220/220 tests, clean production build.
+
+---
+
+# Round 1 notes (hardening)
 
 Session goal: survive a cold YC-partner demo on conference wifi. Everything below
 was verified by driving the real app in a browser (import → edit → play → export),
@@ -47,29 +76,20 @@ not by code reading alone.
    landing "View Source" pointed at bare `github.com` (now the real repo),
    AbortError console spam from the play/pause race silenced.
 
-## Known remaining, ranked by demo impact
+## Known remaining, ranked by demo impact (updated after round 2)
 
-1. **Design is "AI slop" adjacent** (purple gradient headline, purple CTAs,
-   zinc-900 cards). Functional, but a design-literate judge will clock it.
-   If you get one design day: pick a single distinctive direction for the
-   *editor as instrument* (e.g. near-black + one signal color that isn't
-   purple, a real display face for the landing hero, tighter type scale).
-   Don't retheme mid-demo-week without re-verifying export UI states.
-2. **No bundled sample project** — the conference demo depends on you having
-   media files handy. A "Load demo project" button (sample 15s clip + song in
-   `public/`) would make the first 30 seconds bulletproof. (Test files exist
-   locally as `public/__test-*` but are gitignored — they're synthetic ffmpeg
-   patterns, not demo-worthy footage.)
-3. **Metronome overlay doubles export time** (second full encode). For the live
-   demo either press `M` (hide metronome → skips the pass) before exporting, or
-   budget ~3 min talk time. Proper fix: fold drawbox into the main filter graph.
-4. **BPM detector is a simple energy autocorrelation** — verify it on your
+1. **Swap the demo clip for real footage of you playing.** The bundled
+   gradient clip proves the flow, but 15 seconds of you at a drum kit makes
+   the demo *land* ("I made a music video of myself in 60 seconds"). Drop a
+   new file over `public/demo/demo-clip.mp4` (keep it ≤20s, H.264 720p) and
+   optionally a real track over `demo-track.mp3`.
+2. **BPM detector is a simple energy autocorrelation** — verify it on your
    actual demo song beforehand; octave errors (60 vs 120) are possible on
    sparse/legato music. Tap tempo (`T`) is the on-stage fallback.
-5. Timeline `duration` persists across reloads (stale bar count on an empty
-   editor after a previous session). Cosmetic.
-6. Dev Tour says "52 steps" in the first-run modal — fine for you, but consider
-   hiding it behind Settings so strangers only see the 10-step Quick Tour.
+3. **Metronome overlay still doubles export time when enabled** (second full
+   encode). Proper fix: fold the drawbox into the main filter graph.
+4. Push/merge decision: all work is on `feature/updates-apr14`; live site
+   updates only when you merge to main.
 
 ## Deploy state
 

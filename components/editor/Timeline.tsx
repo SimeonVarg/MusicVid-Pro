@@ -392,7 +392,7 @@ export function Timeline() {
             const nextScroll = -Number(event.currentTarget.value);
             setScrollX(nextScroll);
           }}
-          className="h-2 w-full cursor-pointer accent-purple-500"
+          className="h-2 w-full cursor-pointer accent-signal-400"
           aria-label="Timeline horizontal scroll"
         />
       </div>
@@ -415,7 +415,7 @@ export function Timeline() {
             onChange={(event) => {
               setVerticalScroll(Math.max(0, Math.min(maxVerticalScroll, Number(event.currentTarget.value))));
             }}
-            className="absolute left-1/2 top-1/2 h-[calc(100%-10px)] w-2 -translate-x-1/2 -translate-y-1/2 -rotate-90 cursor-pointer accent-purple-500"
+            className="absolute left-1/2 top-1/2 h-[calc(100%-10px)] w-2 -translate-x-1/2 -translate-y-1/2 -rotate-90 cursor-pointer accent-signal-400"
             aria-label="Timeline vertical scroll"
           />
         </div>

@@ -145,7 +145,7 @@ export default function EditorPage() {
       >
         {isDragOver && (
           <div className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
-            <div className="rounded-2xl border-2 border-dashed border-purple-500 bg-zinc-900/90 px-10 py-8 text-center">
+            <div className="rounded-2xl border-2 border-dashed border-signal-400 bg-zinc-900/90 px-10 py-8 text-center">
               <p className="text-lg font-semibold text-zinc-100">Drop to import</p>
               <p className="mt-1 text-sm text-zinc-400">Video and audio files land on the timeline instantly</p>
             </div>
@@ -227,7 +227,7 @@ export default function EditorPage() {
         {isAdjustingBpm && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
             <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-zinc-800 bg-zinc-900/95 px-8 py-10 text-center shadow-2xl shadow-black/50">
-              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-signal-400 border-t-transparent" />
               <h2 className="text-xl font-semibold text-zinc-100">Applying BPM Adjustor</h2>
               <p className="mt-2 text-sm text-zinc-400">
                 Time-stretching the selected source and updating sync in the background.

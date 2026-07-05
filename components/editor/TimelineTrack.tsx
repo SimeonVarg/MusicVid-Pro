@@ -69,8 +69,8 @@ export function TimelineTrackInner({
   const sourceFile = isVideo ? (track as VideoTrack).file : null;
   const isLocked = track.isLocked;
   const paddedSeconds = isAudio && 'extensionPaddingSeconds' in track ? track.extensionPaddingSeconds : 0;
-  const baseColor = isText ? '#ec4899' : isAudio ? '#8b5cf6' : '#06b6d4';
-  const hoverColor = isText ? '#f472b6' : isAudio ? '#a78bfa' : '#22d3ee';
+  const baseColor = isText ? '#ec4899' : isAudio ? '#a3d924' : '#06b6d4';
+  const hoverColor = isText ? '#f472b6' : isAudio ? '#b7e830' : '#22d3ee';
   const isSelected = selectedTrackIds.includes(track.id);
   const minDuration = 0.05;
   const activeTrimStart = trimPreview?.previewTrimStart ?? track.trimStart;
@@ -83,7 +83,7 @@ export function TimelineTrackInner({
   const committedTrimmedWidth = Math.max(0, (track.trimEnd - track.trimStart) * pixelsPerSecond);
   const showHandles = isHovered || isSelected || trimPreview !== null;
   const handleFill = isSelected ? '#ffffff' : '#d4d4d8';
-  const handleStroke = isSelected ? '#a855f7' : '#52525b';
+  const handleStroke = isSelected ? '#a3d924' : '#52525b';
   const showHandleIcon = (edge: 'start' | 'end') => hoveredHandle === edge || trimPreview?.edge === edge || isSelected;
   const hasVideoThumbnails = isVideo && videoThumbnails.length > 0;
 
@@ -297,7 +297,7 @@ export function TimelineTrackInner({
         return (
           <Line
             points={[0, indicatorY, 10000, indicatorY]}
-            stroke="#a855f7"
+            stroke="#a3d924"
             strokeWidth={2}
             dash={[6, 4]}
             opacity={0.9}
@@ -479,7 +479,7 @@ export function TimelineTrackInner({
             y={clipHeight - 36}
             text={`${track.pitch > 0 ? '+' : ''}${track.pitch} semitones | ${track.bpm.toFixed(1)} BPM`}
             fontSize={9}
-            fill="#a78bfa"
+            fill="#b7e830"
             opacity={0.9}
           />
         )}
@@ -568,7 +568,7 @@ export function TimelineTrackInner({
                 align="center"
                 fontSize={12}
                 fontStyle="bold"
-                fill={hoveredHandle === 'start' ? '#7c3aed' : '#4b5563'}
+                fill={hoveredHandle === 'start' ? '#84b31a' : '#4b5563'}
                 listening={false}
               />
             )}
@@ -581,7 +581,7 @@ export function TimelineTrackInner({
                 align="center"
                 fontSize={12}
                 fontStyle="bold"
-                fill={hoveredHandle === 'end' ? '#7c3aed' : '#4b5563'}
+                fill={hoveredHandle === 'end' ? '#84b31a' : '#4b5563'}
                 listening={false}
               />
             )}
@@ -591,7 +591,7 @@ export function TimelineTrackInner({
         {snapIndicatorX !== null && (
           <Line
             points={[snapIndicatorX, 0, snapIndicatorX, clipHeight]}
-            stroke="#a855f7"
+            stroke="#a3d924"
             strokeWidth={2}
             dash={[4, 3]}
             opacity={0.85}

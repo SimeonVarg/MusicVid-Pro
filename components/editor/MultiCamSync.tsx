@@ -73,7 +73,7 @@ export function MultiCamSync() {
                 key={track.id}
                 className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
                   selectedMasterAudio === track.id
-                    ? 'border-purple-500 bg-purple-500/10'
+                    ? 'border-signal-400 bg-signal-400/10'
                     : 'border-zinc-700 hover:border-zinc-600'
                 }`}
               >
@@ -83,7 +83,7 @@ export function MultiCamSync() {
                   value={track.id}
                   checked={selectedMasterAudio === track.id}
                   onChange={(e) => setSelectedMasterAudio(e.target.value)}
-                  className="w-4 h-4 text-purple-600 border-zinc-600 focus:ring-purple-500"
+                  className="w-4 h-4 text-signal-400 border-zinc-600 focus:ring-signal-400"
                 />
                 <div className="flex-1">
                   <div className="font-medium">{track.name}</div>
@@ -92,7 +92,7 @@ export function MultiCamSync() {
                   </div>
                 </div>
                 {track.isMaster && (
-                  <span className="text-xs bg-purple-600 px-2 py-1 rounded">
+                  <span className="text-xs bg-signal-400 text-zinc-950 font-medium px-2 py-1 rounded">
                     Master
                   </span>
                 )}

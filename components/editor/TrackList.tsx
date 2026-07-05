@@ -29,6 +29,28 @@ export function TrackList() {
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
   const [newTextValue, setNewTextValue] = useState('New text');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const loadDemoProject = async () => {
+    if (demoLoading) return;
+    setDemoLoading(true);
+    try {
+      const fetchAsFile = async (url: string, name: string, type: string) =>
+        new File([await (await fetch(url)).blob()], name, { type });
+      const [video, audio] = await Promise.all([
+        fetchAsFile('/demo/demo-clip.mp4', 'demo-clip.mp4', 'video/mp4'),
+        fetchAsFile('/demo/demo-track.mp3', 'demo-track.mp3', 'audio/mpeg'),
+      ]);
+      await addVideoTrack(video);
+      await addAudioTrack(audio);
+    } catch {
+      useEditorStore.setState({
+        lastError: 'Could not load the demo project. Check your connection and try again.',
+      });
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   const allTracks = useMemo(
     () => [
@@ -115,7 +137,7 @@ export function TrackList() {
             size="icon"
             title={menuTitles[menu]}
             onClick={() => setActiveMenu(menu)}
-            className={`h-10 w-10 rounded-xl ${activeMenu === menu ? 'bg-purple-600 hover:bg-purple-600' : ''}`}
+            className={`h-10 w-10 rounded-xl ${activeMenu === menu ? 'bg-signal-400 hover:bg-signal-400' : ''}`}
             {...(menu === 'upload' ? { 'data-tutorial': 'tracklist-upload' } : {})}
             {...(menu === 'record' ? { 'data-tutorial': 'tracklist-record' } : {})}
           >
@@ -188,6 +210,9 @@ export function TrackList() {
                 <Film className="mb-3 h-8 w-8 text-zinc-700" />
                 <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
                 <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere — or use the + rail</p>
+                <Button size="sm" className="mt-4" onClick={loadDemoProject} disabled={demoLoading}>
+                  {demoLoading ? 'Loading…' : 'Load demo project'}
+                </Button>
               </div>
             ) : (
               <div className="flex-1 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
@@ -195,7 +220,7 @@ export function TrackList() {
                   const isSelected = selectedTrackIds.includes(track.id);
                   const isAudio = track.type === 'audio';
                   const isText = track.type === 'text';
-                  const iconColor = isText ? 'text-pink-400' : isAudio ? 'text-purple-400' : 'text-cyan-400';
+                  const iconColor = isText ? 'text-pink-400' : isAudio ? 'text-signal-400' : 'text-cyan-400';
 
                   return (
                     <div
@@ -203,7 +228,7 @@ export function TrackList() {
                       onClick={() => handleTrackClick(track.id)}
                       className={`group cursor-pointer rounded-lg border px-2.5 py-2 transition-all ${
                         isSelected
-                          ? 'border-purple-500/60 bg-purple-600/15 ring-1 ring-purple-500/20'
+                          ? 'border-signal-400/60 bg-signal-400/10 ring-1 ring-signal-400/20'
                           : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-800/60'
                       }`}
                     >
@@ -253,7 +278,7 @@ export function TrackList() {
                           {track.isMuted && <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">Muted</span>}
                           {track.isLocked && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">Locked</span>}
                           {isAudio && 'isMaster' in track && track.isMaster && (
-                            <span className="rounded-full bg-purple-600/20 px-2 py-0.5 text-[10px] text-purple-300">Master</span>
+                            <span className="rounded-full bg-signal-400/15 px-2 py-0.5 text-[10px] text-signal-300">Master</span>
                           )}
                         </div>
                       )}

@@ -549,8 +549,8 @@ export class VideoProcessor {
     const beatInterval = 60 / Math.max(1, bpm);
     const barInterval = beatInterval * Math.max(1, timeSignature.numerator);
     const flashDuration = Math.min(0.15, beatInterval / 2).toFixed(6);
-    const beatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=purple@0.55:t=fill:enable='lt(mod(t,${beatInterval.toFixed(6)}),${flashDuration})'`;
-    const downbeatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=violet@0.9:t=fill:enable='lt(mod(t,${barInterval.toFixed(6)}),${flashDuration})'`;
+    const beatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=chartreuse@0.55:t=fill:enable='lt(mod(t,${beatInterval.toFixed(6)}),${flashDuration})'`;
+    const downbeatBox = `drawbox=x=${x}:y=${y}:w=60:h=60:color=white@0.9:t=fill:enable='lt(mod(t,${barInterval.toFixed(6)}),${flashDuration})'`;
     const filterComplex = `[0:v]${beatBox},${downbeatBox}[outv]`;
 
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {

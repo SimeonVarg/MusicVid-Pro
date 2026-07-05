@@ -385,7 +385,7 @@ export function ExportModal() {
 
   const selectionCard = (active: boolean) =>
     `relative flex flex-col cursor-pointer rounded-xl border-2 p-4 transition-all ${
-      active ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
+      active ? 'border-signal-400 bg-signal-400/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
     }`;
 
   return (
@@ -487,7 +487,7 @@ export function ExportModal() {
                     <label key={preset.id} className={selectionCard(selectedPreset === preset.id)}>
                       <RadioGroupItem value={preset.id} className="sr-only" />
                       <div className="mb-2 flex items-center gap-2">
-                        <preset.icon className="h-4 w-4 text-purple-400" />
+                        <preset.icon className="h-4 w-4 text-signal-400" />
                         <span className="font-semibold">{preset.name}</span>
                       </div>
                       <span className="text-xs text-zinc-400">{preset.resolution} · {preset.aspectRatio}</span>
@@ -530,7 +530,7 @@ export function ExportModal() {
                     key={template.id}
                     className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all ${
                       selectedTemplate === template.id
-                        ? 'border-purple-500 bg-purple-500/10'
+                        ? 'border-signal-400 bg-signal-400/10'
                         : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'
                     }`}
                   >

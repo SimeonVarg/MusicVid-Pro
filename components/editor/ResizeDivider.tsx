@@ -28,12 +28,12 @@ export function ResizeDivider({ direction, onMouseDown }: Props) {
       <div
         className={`transition-colors duration-100 ${
           isH ? 'h-full w-px' : 'h-px w-full'
-        } ${active ? 'bg-purple-500' : 'bg-zinc-800 group-hover:bg-purple-500/60'}`}
+        } ${active ? 'bg-signal-400' : 'bg-zinc-800 group-hover:bg-signal-400/60'}`}
       />
       {/* Drag handle pill */}
       <div
         className={`absolute flex items-center justify-center rounded-full bg-zinc-700 opacity-0 transition-opacity group-hover:opacity-100 ${
-          active ? '!opacity-100 bg-purple-600' : ''
+          active ? '!opacity-100 bg-signal-400' : ''
         } ${isH ? 'h-8 w-3' : 'h-3 w-8'}`}
       >
         {isH ? (

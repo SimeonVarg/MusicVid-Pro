@@ -61,7 +61,7 @@ export function TimeDisplay() {
         title="Switch to musical position display"
       >
         <span className="section-label leading-none">Bar.Beat</span>
-        <span className="mt-1 w-full truncate font-mono text-xs font-semibold text-purple-400">
+        <span className="mt-1 w-full truncate font-mono text-xs font-semibold text-signal-400">
           {musicalStr}
         </span>
       </button>
