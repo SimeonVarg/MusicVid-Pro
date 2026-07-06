@@ -11,6 +11,8 @@
  *   // Then pass to MediaJobQueue.enqueue() with ffmpeg.exec([...inputArgs, '-filter_complex', filterGraph, ...outputArgs])
  */
 
+import { toFfmpegFilters, type ColorAdjustments } from '@/lib/video/colorAdjustments';
+
 export interface CompositorVideoTrack {
   id: string;
   fileIndex: number;       // index into the -i input list
@@ -21,6 +23,7 @@ export interface CompositorVideoTrack {
   isMuted: boolean;
   fadeInDuration: number;
   fadeOutDuration: number;
+  colorAdjustments?: ColorAdjustments;
 }
 
 export interface CompositorAudioTrack {
@@ -118,6 +121,8 @@ export class TimelineCompositor {
       }
       // Scale to output resolution
       filters.push(`scale=${outputPreset.resolution},setsar=1`);
+      // Per-clip color grade (eq/hue only — safe in every ffmpeg-core build)
+      filters.push(...toFfmpegFilters(t.colorAdjustments));
       // Fade in/out
       if (t.fadeInDuration > 0) {
         filters.push(`fade=t=in:st=${t.offset.toFixed(6)}:d=${t.fadeInDuration.toFixed(6)}`);

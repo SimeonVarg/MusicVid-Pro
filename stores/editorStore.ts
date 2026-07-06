@@ -20,6 +20,7 @@ import {
   tutorialInitialState,
 } from './slices';
 import { saveTutorialProgress, clearTutorialProgress, saveTutorialProgressV2, clearTutorialProgressV2 } from '@/lib/tutorial/tutorialPersistence';
+import { DEFAULT_COLOR_ADJUSTMENTS, type ColorAdjustments } from '@/lib/video/colorAdjustments';
 import { TUTORIAL_STEPS, QUICK_TOUR_STEPS } from '@/lib/tutorial/tutorialSteps';
 import type { TutorialMode } from './slices/tutorialSlice';
 
@@ -96,6 +97,7 @@ export interface VideoTrack {
   freezeFrameOnExtend: boolean;
   colorCorrection: boolean;
   stabilization: boolean;
+  colorAdjustments?: ColorAdjustments;
   previewX: number;
   previewY: number;
   previewWidth: number;
@@ -584,6 +586,7 @@ export const useEditorStore = create<EditorState>()(
                 volume: 1, isMuted: false, isLocked: false,
                 linkedAudioTrackId: undefined, hasEmbeddedAudio: true,
                 freezeFrameOnExtend: true, colorCorrection: false, stabilization: false,
+                colorAdjustments: { ...DEFAULT_COLOR_ADJUSTMENTS },
                 previewX: 0, previewY: 0, previewWidth: 100, previewHeight: 100,
                 fadeInDuration: 0, fadeOutDuration: 0, effects: [],
               });

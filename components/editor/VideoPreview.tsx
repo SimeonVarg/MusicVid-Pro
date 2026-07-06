@@ -2,9 +2,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { VideoOff, Maximize2 } from 'lucide-react';
+import { VideoOff, Maximize2, Camera, Grid3X3 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
 import { MetronomeOverlay } from './MetronomeOverlay';
+import { toCssFilter } from '@/lib/video/colorAdjustments';
 
 type DragMode = 'drag' | 'resize';
 
@@ -65,6 +66,37 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [dragState, setDragState] = useState<DragState>(null);
   const [textDragState, setTextDragState] = useState<TextDragState>(null);
+  const [showGuides, setShowGuides] = useState(false);
+
+  // Capture the current frame (with its color grade) as a PNG download.
+  const handleSnapshot = () => {
+    const targetId = selectedVideoTrackId ?? activeVideoLayers.at(-1)?.id;
+    const video = targetId ? videoRefs.current[targetId] : null;
+    if (!video || !video.videoWidth) {
+      useEditorStore.setState({
+        lastError: 'No video frame to capture — add a video and move the playhead over it.',
+      });
+      return;
+    }
+    const track = videoTracks.find((t) => t.id === targetId);
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const cssFilter = toCssFilter(track?.colorAdjustments);
+    if (cssFilter !== 'none') ctx.filter = cssFilter;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `frame-${timeline.currentTime.toFixed(2).replace('.', '-')}s.png`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
 
   const activeVideoLayers = useMemo(
     () =>
@@ -277,20 +309,55 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         }
       }}
     >
-      {/* Detach button — shown on hover */}
-      {onDetach && !detached && (
+      {/* Preview tools — shown on hover */}
+      <div className="absolute right-2 top-2 z-20 flex gap-1 opacity-0 transition-opacity [.relative:hover_&]:opacity-100">
         <button
-          onClick={onDetach}
-          title="Pop out preview"
-          className="absolute right-2 top-2 z-20 rounded-lg border border-zinc-700 bg-zinc-900/80 p-1.5 text-zinc-400 opacity-0 backdrop-blur-sm transition-opacity hover:text-zinc-100 [.relative:hover_&]:opacity-100"
+          onClick={() => setShowGuides((v) => !v)}
+          title={showGuides ? 'Hide composition guides' : 'Show composition guides (thirds + safe area)'}
+          className={`rounded-lg border p-1.5 backdrop-blur-sm transition-colors ${
+            showGuides
+              ? 'border-signal-400/60 bg-signal-400/15 text-signal-300'
+              : 'border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-zinc-100'
+          }`}
         >
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Grid3X3 className="h-3.5 w-3.5" />
         </button>
+        <button
+          onClick={handleSnapshot}
+          title="Save current frame as PNG"
+          className="rounded-lg border border-zinc-700 bg-zinc-900/80 p-1.5 text-zinc-400 backdrop-blur-sm transition-colors hover:text-zinc-100"
+        >
+          <Camera className="h-3.5 w-3.5" />
+        </button>
+        {onDetach && !detached && (
+          <button
+            onClick={onDetach}
+            title="Pop out preview"
+            className="rounded-lg border border-zinc-700 bg-zinc-900/80 p-1.5 text-zinc-400 backdrop-blur-sm transition-colors hover:text-zinc-100"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Composition guides — rule of thirds, center cross, action-safe area */}
+      {showGuides && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-y-0 left-1/3 w-px bg-white/25" />
+          <div className="absolute inset-y-0 left-2/3 w-px bg-white/25" />
+          <div className="absolute inset-x-0 top-1/3 h-px bg-white/25" />
+          <div className="absolute inset-x-0 top-2/3 h-px bg-white/25" />
+          <div className="absolute left-1/2 top-1/2 h-4 w-px -translate-x-1/2 -translate-y-1/2 bg-signal-400/80" />
+          <div className="absolute left-1/2 top-1/2 h-px w-4 -translate-x-1/2 -translate-y-1/2 bg-signal-400/80" />
+          <div className="absolute inset-[5%] border border-dashed border-white/20" />
+        </div>
       )}
       {activeVideoLayers.length > 0 ? (
         activeVideoLayers.map((track, index) => {
           const isSelected = track.id === selectedVideoTrackId;
+          const gradeFilter = toCssFilter(track.colorAdjustments);
           const previewFilter = [
+            gradeFilter !== 'none' ? gradeFilter : '',
             track.colorCorrection ? 'contrast(1.12) saturate(1.18) brightness(1.04)' : '',
             track.stabilization ? 'drop-shadow(0 0 10px rgba(255,255,255,0.08))' : '',
           ]

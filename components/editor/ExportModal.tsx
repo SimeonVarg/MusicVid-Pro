@@ -284,6 +284,7 @@ export function ExportModal() {
       const compositorVideoTracks: CompositorVideoTrack[] = activeVideoTracks.map((t, i) => ({
         id: t.id, fileIndex: i, offset: t.offset, trimStart: t.trimStart, trimEnd: t.trimEnd,
         volume: t.volume, isMuted: t.isMuted, fadeInDuration: t.fadeInDuration ?? 0, fadeOutDuration: t.fadeOutDuration ?? 0,
+        colorAdjustments: t.colorAdjustments,
       }));
 
       const videoInputCount = activeVideoTracks.length;

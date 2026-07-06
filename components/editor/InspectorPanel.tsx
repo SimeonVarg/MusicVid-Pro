@@ -9,6 +9,13 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Progress } from '@/components/ui/Progress';
 import { Music, Video, Sliders, Zap, Settings2, Scissors } from 'lucide-react';
+import {
+  DEFAULT_COLOR_ADJUSTMENTS,
+  LOOK_LABELS,
+  isDefaultAdjustments,
+  type ColorAdjustments,
+  type LookPreset,
+} from '@/lib/video/colorAdjustments';
 
 type InspectorTab = 'inspect' | 'adjust';
 
@@ -639,23 +646,83 @@ export function InspectorPanel() {
               </div>
             )}
 
+            {selectedVideoTrack && !selectedTextTrack && (() => {
+              const adjustments: ColorAdjustments = {
+                ...DEFAULT_COLOR_ADJUSTMENTS,
+                ...(selectedVideoTrack.colorAdjustments ?? {}),
+              };
+              const setAdjustment = (patch: Partial<ColorAdjustments>) => {
+                updateTrack(selectedTrack.id, {
+                  colorAdjustments: { ...adjustments, ...patch },
+                });
+              };
+              const colorSlider = (
+                label: string,
+                key: 'brightness' | 'contrast' | 'saturation' | 'hue',
+                min: number,
+                max: number,
+                step: number,
+                format: (v: number) => string
+              ) => (
+                <div key={key}>
+                  <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+                    <span>{label}</span>
+                    <span className="font-mono text-zinc-300">{format(adjustments[key])}</span>
+                  </div>
+                  <Slider
+                    value={[adjustments[key]]}
+                    onValueChange={([value]) => setAdjustment({ [key]: value })}
+                    min={min}
+                    max={max}
+                    step={step}
+                  />
+                </div>
+              );
+              return (
+              <div className="border-t border-zinc-800 pt-6" data-tutorial="color-section">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="section-label">Color</h4>
+                  {!isDefaultAdjustments(adjustments) && (
+                    <button
+                      className="text-[11px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                      onClick={() => setAdjustment({ ...DEFAULT_COLOR_ADJUSTMENTS })}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-1.5">
+                    {(Object.keys(LOOK_LABELS) as LookPreset[]).map((look) => (
+                      <button
+                        key={look}
+                        onClick={() => setAdjustment({ look })}
+                        className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          adjustments.look === look
+                            ? 'border-signal-400/70 bg-signal-400/15 text-signal-300'
+                            : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                        }`}
+                      >
+                        {LOOK_LABELS[look]}
+                      </button>
+                    ))}
+                  </div>
+                  {colorSlider('Brightness', 'brightness', 0.5, 1.5, 0.01, (v) => `${Math.round(v * 100)}%`)}
+                  {colorSlider('Contrast', 'contrast', 0.5, 1.5, 0.01, (v) => `${Math.round(v * 100)}%`)}
+                  {colorSlider('Saturation', 'saturation', 0, 2, 0.01, (v) => `${Math.round(v * 100)}%`)}
+                  {colorSlider('Hue', 'hue', -180, 180, 1, (v) => `${Math.round(v)}°`)}
+                  <div className="panel-inset p-3 text-xs text-zinc-400">
+                    Grades preview live and are baked into the export.
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+
             {selectedVideoTrack && !selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">
                 <h4 className="section-label mb-3">Video Effects</h4>
                 <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                    onClick={() => {
-                      updateTrack(selectedTrack.id, {
-                        colorCorrection: !selectedVideoTrack?.colorCorrection,
-                      });
-                    }}
-                  >
-                    <Sliders className="h-4 w-4" />
-                    Color Correction
-                  </Button>
-
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2"
@@ -668,10 +735,6 @@ export function InspectorPanel() {
                     <Zap className="h-4 w-4" />
                     Stabilization
                   </Button>
-
-                  <div className="panel-inset p-3 text-xs text-zinc-400">
-                    These toggles apply visible preview-side effects only in this pass.
-                  </div>
                 </div>
               </div>
             )}

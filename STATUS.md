@@ -1,4 +1,26 @@
-# MusicVid Pro — Status (July 5, 2026: hardening + design sessions)
+# MusicVid Pro — Status (July 5, 2026: hardening + design + features)
+
+## Round 3 (same day): flagship-editor features
+
+- **Per-clip color grading** (`lib/video/colorAdjustments.ts` — single source
+  of truth for preview *and* export): brightness/contrast/saturation/hue
+  sliders + look presets (Noir, Warm, Cool, Vintage) in the Inspector's new
+  Color section. Live CSS filter on the preview; baked into exports via
+  ffmpeg `eq`/`hue` (deliberately restricted to those two universally-safe
+  filters). Replaces the old fake "Color Correction" toggle. Verified: Noir
+  applied via UI → grayscale preview → full TikTok export with the grade
+  baked completed in 55s.
+- **Autosave + session restore**: 5s-debounced save of the whole project
+  (tracks, trims, grades, file blobs) to IndexedDB; on a cold editor load a
+  "Restore your last session?" banner brings everything back — audio
+  re-decoded, waveform regenerated, BPM and grades intact. Verified with a
+  full reload cycle.
+- **Still-frame snapshot**: camera button in the preview saves the current
+  frame (with its color grade applied) as `frame-<time>s.png`. Verified: real
+  83KB PNG produced.
+- **Composition guides**: rule-of-thirds + center cross + action-safe overlay,
+  toggle in the preview toolbar.
+- 6 new unit tests (color math + compositor graph); suite now 226/226.
 
 ## Round 2 (same day): design system + first-run polish
 

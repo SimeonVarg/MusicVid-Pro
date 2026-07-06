@@ -13,7 +13,9 @@ import { ErrorToast } from '@/components/ui/ErrorToast';
 import { Progress } from '@/components/ui/Progress';
 import { ResizeDivider } from '@/components/editor/ResizeDivider';
 import { FloatingWindow } from '@/components/editor/FloatingWindow';
+import { SessionRestoreBanner } from '@/components/editor/SessionRestoreBanner';
 import { usePanelResize } from '@/lib/hooks/usePanelResize';
+import { useAutosave } from '@/lib/hooks/useAutosave';
 import { useEditorStore } from '@/stores/editorStore';
 import { useKeyboardShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
@@ -37,6 +39,7 @@ function saveLayout(data: object) {
 
 export default function EditorPage() {
   useKeyboardShortcuts();
+  useAutosave();
 
   const saved = useRef(loadLayout());
 
@@ -152,6 +155,7 @@ export default function EditorPage() {
           </div>
         )}
         <Toolbar />
+        <SessionRestoreBanner />
 
         <div className="flex flex-1 overflow-hidden">
           {/* ── TrackList ── */}
