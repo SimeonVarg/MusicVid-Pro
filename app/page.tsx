@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Github,
 } from 'lucide-react';
+import { TimelineHero } from '@/components/landing/TimelineHero';
 
 const features = [
   {
@@ -140,6 +141,10 @@ export default function Home() {
               <Github className="h-5 w-5" />
               View Source
             </a>
+          </div>
+
+          <div className="mt-16">
+            <TimelineHero />
           </div>
         </div>
       </section>

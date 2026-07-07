@@ -12,6 +12,7 @@
  */
 
 import { toFfmpegFilters, type ColorAdjustments } from '@/lib/video/colorAdjustments';
+import { EXPORT_FONT_FS_PATH, toDrawtextOptions, resolveTitleStyle, type TitleStyle } from '@/lib/video/titleStyles';
 
 export interface CompositorVideoTrack {
   id: string;
@@ -44,6 +45,7 @@ export interface CompositorTextTrack {
   trimEnd: number;
   fontSize: number;
   color: string;
+  titleStyle?: TitleStyle;
   x: number;   // % of canvas width (0–100)
   y: number;   // % of canvas height (0–100)
   opacity: number;
@@ -164,13 +166,23 @@ export class TimelineCompositor {
         const startTime = t.offset + t.trimStart;
         const endTime = t.offset + (t.trimEnd - t.trimStart);
         const outLabel = i === textTracks.length - 1 ? 'vfinal' : `vtxt${i}`;
-        const safeText = t.text.replace(/'/g, "\\'").replace(/:/g, '\\:');
-        const xPx = `(w*${(t.x / 100).toFixed(4)})`;
-        const yPx = `(h*${(t.y / 100).toFixed(4)})`;
+        // Escape for the drawtext filter: backslash, colon, single-quote, percent.
+        const safeText = t.text
+          .replace(/\\/g, '\\\\')
+          .replace(/:/g, '\\:')
+          .replace(/'/g, "’")
+          .replace(/%/g, '\\%');
+        const styleDef = resolveTitleStyle(t.titleStyle);
+        const scaledSize = Math.round(t.fontSize * styleDef.sizeScale);
+        // Center text on the (x,y) anchor, matching the preview's translate(-50%,-50%).
+        const xPx = `(w*${(t.x / 100).toFixed(4)}-text_w/2)`;
+        const yPx = `(h*${(t.y / 100).toFixed(4)}-text_h/2)`;
         const drawtext = [
-          `drawtext=text='${safeText}'`,
-          `fontsize=${t.fontSize}`,
+          `drawtext=fontfile=${EXPORT_FONT_FS_PATH}`,
+          `text='${safeText}'`,
+          `fontsize=${scaledSize}`,
           `fontcolor=${t.color}`,
+          ...toDrawtextOptions(t.titleStyle),
           `x=${xPx}`,
           `y=${yPx}`,
           `alpha=${t.opacity.toFixed(4)}`,

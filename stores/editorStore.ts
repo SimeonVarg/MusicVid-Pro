@@ -21,6 +21,7 @@ import {
 } from './slices';
 import { saveTutorialProgress, clearTutorialProgress, saveTutorialProgressV2, clearTutorialProgressV2 } from '@/lib/tutorial/tutorialPersistence';
 import { DEFAULT_COLOR_ADJUSTMENTS, type ColorAdjustments } from '@/lib/video/colorAdjustments';
+import type { TitleStyle } from '@/lib/video/titleStyles';
 import { TUTORIAL_STEPS, QUICK_TOUR_STEPS } from '@/lib/tutorial/tutorialSteps';
 import type { TutorialMode } from './slices/tutorialSlice';
 
@@ -149,6 +150,7 @@ export interface TextTrack {
   fontSize: number;
   color: string;
   fontFamily: string;
+  titleStyle?: TitleStyle;
   x: number;
   y: number;
   opacity: number;
@@ -425,6 +427,26 @@ function pushHistory(state: EditorState) {
   historyPast.push(snapshotState(state));
   if (historyPast.length > 50) historyPast.shift();
   historyFuture.length = 0;
+  lastCoalesceKey = null;
+}
+
+// Coalesce rapid same-field edits (slider/scrubber drags) into ONE undo step:
+// only the first edit of a burst snapshots the pre-edit state; the rest reuse it.
+let lastCoalesceKey: string | null = null;
+let lastCoalesceAt = 0;
+const COALESCE_WINDOW_MS = 700;
+
+function pushHistoryCoalesced(state: EditorState, key: string) {
+  const now = Date.now();
+  if (key === lastCoalesceKey && now - lastCoalesceAt < COALESCE_WINDOW_MS) {
+    lastCoalesceAt = now;
+    return;
+  }
+  historyPast.push(snapshotState(state));
+  if (historyPast.length > 50) historyPast.shift();
+  historyFuture.length = 0;
+  lastCoalesceKey = key;
+  lastCoalesceAt = now;
 }
 
 function sortUniqueMarkers(markers: number[], epsilon = 0.03) {
@@ -649,7 +671,7 @@ export const useEditorStore = create<EditorState>()(
               offset: state.timeline.currentTime,
               trimStart: 0, trimEnd: duration,
               isMuted: false, isLocked: false,
-              fontSize: 44, color: '#ffffff', fontFamily: 'Inter',
+              fontSize: 44, color: '#ffffff', fontFamily: 'Inter', titleStyle: 'clean',
               x: 50, y: 20, opacity: 1,
               fadeInDuration: 0.35, fadeOutDuration: 0.35,
             });
@@ -688,7 +710,7 @@ export const useEditorStore = create<EditorState>()(
         },
 
         updateTrack: (id: string, updates: Partial<VideoTrack | AudioTrack | TextTrack>) => {
-          pushHistory(get());
+          pushHistoryCoalesced(get(), `updateTrack:${id}:${Object.keys(updates).sort().join(',')}`);
           set((state) => {
             const vt = state.videoTracks.find((t) => t.id === id);
             if (vt) Object.assign(vt, updates);
@@ -715,7 +737,7 @@ export const useEditorStore = create<EditorState>()(
         },
 
         updateTextTrack: (id: string, updates: Partial<TextTrack>) => {
-          pushHistory(get());
+          pushHistoryCoalesced(get(), `updateTextTrack:${id}:${Object.keys(updates).sort().join(',')}`);
           set((state) => {
             const tt = state.textTracks.find((t) => t.id === id);
             if (!tt) return;

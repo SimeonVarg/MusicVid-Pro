@@ -18,6 +18,7 @@ import {
   Save,
   Keyboard,
   Grid3x3,
+  FolderOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Separator } from '@/components/ui/Separator';
@@ -25,10 +26,12 @@ import { BPMControl } from './BPMControl';
 import { TimeDisplay } from './TimeDisplay';
 import { TutorialLauncher } from './TutorialLauncher';
 import { KeyboardShortcutsOverlay } from './KeyboardShortcutsOverlay';
+import { ProjectManager } from './ProjectManager';
 
 export function Toolbar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const {
@@ -245,6 +248,16 @@ export function Toolbar() {
             <TutorialLauncher />
 
             <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Open project"
+              onClick={() => setProjectsOpen(true)}
+            >
+              <FolderOpen className="h-4 w-4" />
+            </Button>
+
+            <Button
               data-tutorial="toolbar-save"
               variant="outline"
               className="h-8 shrink-0 gap-1.5 px-3 text-sm"
@@ -269,7 +282,7 @@ export function Toolbar() {
             <Button
               data-tutorial="toolbar-export"
               variant="default"
-              className="h-8 shrink-0 gap-1.5 bg-green-600 px-3 text-sm hover:bg-green-500"
+              className="h-8 shrink-0 gap-1.5 px-3 text-sm"
               onClick={() => setExportDialogOpen(true)}
             >
               <Download className="h-3.5 w-3.5" />
@@ -280,6 +293,7 @@ export function Toolbar() {
       </div>
 
       <KeyboardShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ProjectManager open={projectsOpen} onOpenChange={setProjectsOpen} />
     </>
   );
 }

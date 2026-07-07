@@ -41,7 +41,10 @@ export default function EditorPage() {
   useKeyboardShortcuts();
   useAutosave();
 
-  const saved = useRef(loadLayout());
+  // Read saved layout AFTER mount only — reading localStorage during render
+  // makes the server (no storage → defaults) and client HTML disagree, which
+  // trips a React hydration mismatch warning.
+  const saved = useRef<ReturnType<typeof loadLayout>>(null);
 
   // Drag-and-drop media import — the first thing a new user tries.
   const [isDragOver, setIsDragOver] = useState(false);
@@ -104,6 +107,16 @@ export default function EditorPage() {
     min: 160, max: 700, direction: 'vertical',
     onCommit: (v) => saveLayout({ ...loadLayout(), previewHeight: v }),
   });
+
+  // Apply any saved panel layout once, after hydration.
+  useEffect(() => {
+    const layout = loadLayout();
+    if (!layout) return;
+    if (typeof layout.trackListWidth === 'number') trackList.setSize(layout.trackListWidth);
+    if (typeof layout.inspectorWidth === 'number') inspector.setSize(layout.inspectorWidth);
+    if (typeof layout.previewHeight === 'number') previewSplit.setSize(layout.previewHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Floating preview state
   const [previewDetached, setPreviewDetached] = useState(false);

@@ -16,6 +16,7 @@ import {
   type ColorAdjustments,
   type LookPreset,
 } from '@/lib/video/colorAdjustments';
+import { TITLE_STYLES, TITLE_STYLE_ORDER, type TitleStyle } from '@/lib/video/titleStyles';
 
 type InspectorTab = 'inspect' | 'adjust';
 
@@ -453,6 +454,30 @@ export function InspectorPanel() {
                           className="border-zinc-700 bg-zinc-800 font-mono"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block text-xs text-zinc-400">Style</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TITLE_STYLE_ORDER.map((style) => {
+                        const active = (selectedTextTrack.titleStyle ?? 'clean') === style;
+                        return (
+                          <button
+                            key={style}
+                            onClick={() => {
+                              useEditorStore.getState().updateTextTrack(selectedTextTrack.id, { titleStyle: style });
+                            }}
+                            className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                              active
+                                ? 'border-signal-400/70 bg-signal-400/15 text-signal-300'
+                                : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                            }`}
+                          >
+                            {TITLE_STYLES[style].label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 

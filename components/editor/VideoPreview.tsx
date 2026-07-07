@@ -6,6 +6,7 @@ import { VideoOff, Maximize2, Camera, Grid3X3 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
 import { MetronomeOverlay } from './MetronomeOverlay';
 import { toCssFilter } from '@/lib/video/colorAdjustments';
+import { toTitleCss } from '@/lib/video/titleStyles';
 
 type DragMode = 'drag' | 'resize';
 
@@ -477,10 +478,10 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
               fontSize: `${track.fontSize}px`,
               opacity: nextOpacity,
               textAlign: 'center',
-              textShadow: '0 2px 12px rgba(0, 0, 0, 0.45)',
               userSelect: 'none',
               pointerEvents: 'auto',
               lineHeight: 1.15,
+              ...toTitleCss(track.titleStyle),
             }}
             onMouseDown={(event) => {
               if (track.isLocked) {

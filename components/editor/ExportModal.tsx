@@ -5,6 +5,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { VideoProcessor } from '@/lib/video/videoProcessor';
 import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
 import { TimelineCompositor, EXPORT_PRESETS, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
+import { EXPORT_FONT_URL, EXPORT_FONT_FS_PATH } from '@/lib/video/titleStyles';
 import { fetchFile } from '@ffmpeg/util';
 import {
   Dialog,
@@ -295,7 +296,7 @@ export function ExportModal() {
 
       const compositorTextTracks: CompositorTextTrack[] = textTracks.filter((t) => !t.isMuted).map((t) => ({
         id: t.id, text: t.text, offset: t.offset, trimStart: t.trimStart, trimEnd: t.trimEnd,
-        fontSize: t.fontSize, color: t.color, x: t.x, y: t.y, opacity: t.opacity,
+        fontSize: t.fontSize, color: t.color, titleStyle: t.titleStyle, x: t.x, y: t.y, opacity: t.opacity,
         fadeInDuration: t.fadeInDuration ?? 0, fadeOutDuration: t.fadeOutDuration ?? 0,
       }));
 
@@ -316,6 +317,11 @@ export function ExportModal() {
           const f = activeAudioTracks[i].file!;
           const ext = f.name.split('.').pop() ?? 'mp3';
           await ffmpeg.writeFile(`export-audio-${i}.${ext}`, await fetchFile(f));
+        }
+        // drawtext needs a real font file — WASM ffmpeg has no system fonts, so
+        // a title with no fontfile aborts the whole graph. Load the bundled font.
+        if (compositorTextTracks.length > 0) {
+          await ffmpeg.writeFile(EXPORT_FONT_FS_PATH, await fetchFile(EXPORT_FONT_URL));
         }
 
         setProgress(40);

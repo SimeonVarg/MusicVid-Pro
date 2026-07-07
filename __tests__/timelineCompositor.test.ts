@@ -155,8 +155,8 @@ describe('TimelineCompositor', () => {
       duration: 10,
       outputPreset: PRESET,
     });
-    expect(filterGraph).toContain('drawtext=text=');
-    expect(filterGraph).toContain('Test Title');
+    expect(filterGraph).toContain('drawtext=fontfile=');
+    expect(filterGraph).toContain("text='Test Title'");
     expect(filterGraph).toContain("enable='between(t,");
   });
 

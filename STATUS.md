@@ -1,5 +1,37 @@
 # MusicVid Pro — Status (July 5, 2026: hardening + design + features)
 
+## Round 4 (July 6): titles that actually export + project manager
+
+- **CRITICAL FIX — text export was silently broken.** Adding ANY text track
+  made export fail instantly ("No font filename provided") because WASM ffmpeg
+  ships no system fonts, so `drawtext` aborted the whole filter graph. Now a
+  bundled font (`public/fonts/NotoSans-Regular.ttf`, 27KB) is written into the
+  ffmpeg FS before export and referenced via `fontfile=`. Verified: a text
+  export that failed at 0% now completes in ~78s with the title baked in.
+- **Titles system** (`lib/video/titleStyles.ts`, one source of truth for
+  preview + export): 5 style presets — Clean, Bold Box, Outline, Lower Third,
+  Karaoke — with box backgrounds, outlines, and drop shadows. Style picker in
+  the Inspector's text section; renders live in the preview and bakes into the
+  export. drawtext text is now properly escaped (colon/percent/backslash) and
+  centered on its anchor to match the preview.
+- **Project Manager** (`components/editor/ProjectManager.tsx`): the folder
+  button in the toolbar opens saved projects with open/delete, "Open" badge on
+  the current one, relative timestamps. (The persistence layer already
+  supported this — it just had no UI.) Verified: lists projects, opens them.
+- **Undo coalescing**: slider/scrubber drags now collapse into ONE undo step
+  (was one-per-tick). Verified deterministically — 10 frame-spaced updates →
+  1 history entry, 0 spurious pushes.
+- **Design**: animated TimelineHero on the landing (CSS/SVG mini-editor with a
+  scanning playhead, waveform, and beat grid — no client JS, respects
+  reduced-motion); branded signal-green waveform favicon (`app/icon.svg`);
+  OpenGraph/Twitter social-card metadata. Export button recolored to signal
+  (last stray green).
+- Fixed a pre-existing hydration warning (panel widths were read from
+  localStorage during render; now applied post-mount).
+- Tests: +9 (titleStyles + compositor); suite 233/233. Clean prod build.
+
+---
+
 ## Round 3 (same day): flagship-editor features
 
 - **Per-clip color grading** (`lib/video/colorAdjustments.ts` — single source
