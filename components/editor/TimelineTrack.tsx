@@ -3,13 +3,14 @@
 
 import { Group, Rect, Text, Line, Image as KonvaImage } from 'react-konva';
 import React, { useEffect, useRef, useState } from 'react';
-import { AudioTrack, TextTrack, VideoTrack, useEditorStore } from '@/stores/editorStore';
+import { AudioTrack, TextTrack, VideoTrack, MidiTrack, useEditorStore } from '@/stores/editorStore';
 import { VideoProcessor, type ThumbnailFrame } from '@/lib/video/videoProcessor';
 import { WaveformVisualization } from '@/components/editor/WaveformVisualization';
 import { snapToBeatGrid } from '@/lib/utils/musicalTime';
+import { beatsToSeconds } from '@/lib/midi/noteUtils';
 
 interface TimelineTrackProps {
-  track: (AudioTrack | VideoTrack | TextTrack) & { type: 'audio' | 'video' | 'text' };
+  track: (AudioTrack | VideoTrack | TextTrack | MidiTrack) & { type: 'audio' | 'video' | 'text' | 'midi' };
   y: number;
   height: number;
   pixelsPerSecond: number;
@@ -56,6 +57,7 @@ export function TimelineTrackInner({
     reorderVideoTrack,
     resizeTrackEdge,
     selectedTrackIds,
+    openPianoRoll,
     timeline: { snapToGrid },
     musical,
   } = useEditorStore();
@@ -66,11 +68,12 @@ export function TimelineTrackInner({
   const isAudio = track.type === 'audio';
   const isVideo = track.type === 'video';
   const isText = track.type === 'text';
+  const isMidi = track.type === 'midi';
   const sourceFile = isVideo ? (track as VideoTrack).file : null;
   const isLocked = track.isLocked;
   const paddedSeconds = isAudio && 'extensionPaddingSeconds' in track ? track.extensionPaddingSeconds : 0;
-  const baseColor = isText ? '#ec4899' : isAudio ? '#a3d924' : '#06b6d4';
-  const hoverColor = isText ? '#f472b6' : isAudio ? '#b7e830' : '#22d3ee';
+  const baseColor = isText ? '#ec4899' : isMidi ? '#8b5cf6' : isAudio ? '#a3d924' : '#06b6d4';
+  const hoverColor = isText ? '#f472b6' : isMidi ? '#a78bfa' : isAudio ? '#b7e830' : '#22d3ee';
   const isSelected = selectedTrackIds.includes(track.id);
   const minDuration = 0.05;
   const activeTrimStart = trimPreview?.previewTrimStart ?? track.trimStart;
@@ -363,6 +366,11 @@ export function TimelineTrackInner({
           event.cancelBubble = true;
           setSelectedTrackIds([track.id]);
         }}
+        onDblClick={(event) => {
+          if (!isMidi) return;
+          event.cancelBubble = true;
+          openPianoRoll(track.id);
+        }}
         onContextMenu={(event) => {
           event.evt.preventDefault();
           event.cancelBubble = true;
@@ -435,6 +443,40 @@ export function TimelineTrackInner({
             color="#ffffff"
           />
         )}
+
+        {/* MIDI note preview */}
+        {isMidi && (track as MidiTrack).notes.length > 0 && (() => {
+          const notes = (track as MidiTrack).notes;
+          let lo = Infinity, hi = -Infinity;
+          for (const n of notes) { if (n.pitch < lo) lo = n.pitch; if (n.pitch > hi) hi = n.pitch; }
+          if (hi - lo < 11) { const mid = (hi + lo) / 2; lo = mid - 6; hi = mid + 6; } // min ~1 octave
+          const range = Math.max(1, hi - lo);
+          const padTop = 16, padBottom = 6;
+          const usableH = Math.max(4, clipHeight - padTop - padBottom);
+          const noteH = Math.max(1.5, Math.min(6, usableH / (range + 1)));
+          return (
+            <Group listening={false}>
+              {notes.map((n) => {
+                const nx = beatsToSeconds(n.startBeat, musical.bpm) * pixelsPerSecond;
+                const nw = Math.max(1.5, beatsToSeconds(n.durationBeats, musical.bpm) * pixelsPerSecond);
+                const ny = padTop + (1 - (n.pitch - lo) / range) * usableH;
+                if (nx > trimmedWidth) return null;
+                return (
+                  <Rect
+                    key={n.id}
+                    x={nx}
+                    y={ny}
+                    width={Math.min(nw, Math.max(0, trimmedWidth - nx))}
+                    height={noteH}
+                    fill="#ede9fe"
+                    opacity={0.35 + 0.6 * n.velocity}
+                    cornerRadius={1}
+                  />
+                );
+              })}
+            </Group>
+          );
+        })()}
 
         {/* Track Label */}
         <Text

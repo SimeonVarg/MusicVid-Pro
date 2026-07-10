@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { VideoOff, Maximize2, Camera, Grid3X3 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
+import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
 import { MetronomeOverlay } from './MetronomeOverlay';
+import { setMediaPan } from '@/lib/audio/mediaPan';
 import { toCssFilter } from '@/lib/video/colorAdjustments';
 import { toTitleCss } from '@/lib/video/titleStyles';
 
@@ -57,6 +59,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
     videoTracks,
     audioTracks,
     textTracks,
+    midiTracks,
     timeline,
     musical,
     selectedTrackIds,
@@ -64,10 +67,17 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
     updateVideoPreviewLayout,
   } = useEditorStore();
 
+  // Any track soloed anywhere → non-soloed tracks are silenced (mixer solo).
+  const anySoloed =
+    videoTracks.some((t) => t.isSoloed) ||
+    audioTracks.some((t) => t.isSoloed) ||
+    midiTracks.some((t) => t.isSoloed);
+
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [dragState, setDragState] = useState<DragState>(null);
   const [textDragState, setTextDragState] = useState<TextDragState>(null);
   const [showGuides, setShowGuides] = useState(false);
+  const previewMenu = useContextMenu();
 
   // Capture the current frame (with its color grade) as a PNG download.
   const handleSnapshot = () => {
@@ -223,7 +233,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       }
 
       video.volume = track.volume;
-      video.muted = track.isMuted || !track.hasEmbeddedAudio;
+      video.muted = track.isMuted || !track.hasEmbeddedAudio || (anySoloed && !track.isSoloed);
+      setMediaPan(video, track.pan ?? 0);
 
       const isInExtendedFreezeRange = track.freezeFrameOnExtend && sourceTime >= maxPlayableTime;
 
@@ -237,7 +248,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         video.pause();
       }
     });
-  }, [activeVideoLayers, audioTracks, timeline.currentTime, timeline.isPlaying]);
+  }, [activeVideoLayers, audioTracks, timeline.currentTime, timeline.isPlaying, anySoloed]);
 
   useEffect(() => {
     audioTracks.forEach((track) => {
@@ -287,7 +298,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       }
 
       audio.volume = track.volume;
-      audio.muted = track.isMuted;
+      audio.muted = track.isMuted || (anySoloed && !track.isSoloed);
+      setMediaPan(audio, track.pan ?? 0);
 
       if (timeline.isPlaying && isActive) {
         audio.play().catch((err) => {
@@ -297,7 +309,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         audio.pause();
       }
     });
-  }, [audioTracks, timeline.currentTime, timeline.isPlaying]);
+  }, [audioTracks, timeline.currentTime, timeline.isPlaying, anySoloed]);
 
   return (
     <div
@@ -308,6 +320,14 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         if (event.target === event.currentTarget) {
           setSelectedTrackIds([]);
         }
+      }}
+      onContextMenu={(e) => {
+        const items: MenuItem[] = [
+          { label: 'Take snapshot', icon: Camera, onSelect: handleSnapshot },
+          { label: showGuides ? 'Hide composition guides' : 'Show composition guides', icon: Grid3X3, onSelect: () => setShowGuides((v) => !v) },
+          ...(onDetach && !detached ? [{ type: 'separator' as const }, { label: 'Detach preview', icon: Maximize2, onSelect: onDetach } as MenuItem] : []),
+        ];
+        previewMenu.open(e, items);
       }}
     >
       {/* Preview tools — shown on hover */}
@@ -525,6 +545,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
           </div>
         </div>
       )}
+
+      {previewMenu.node}
     </div>
   );
 }

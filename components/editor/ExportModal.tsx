@@ -42,7 +42,7 @@ export function ExportModal() {
   const [audioFormat, setAudioFormat] = useState<'mp3' | 'wav'>('mp3');
   const [qualityTier, setQualityTier] = useState<QualityTier>('high');
 
-  const { audioTracks, exportDialogOpen, musical, setExportDialogOpen, timeline, videoTracks, textTracks } = useEditorStore();
+  const { audioTracks, exportDialogOpen, musical, setExportDialogOpen, timeline, videoTracks, textTracks, midiTracks } = useEditorStore();
 
   const presets = [
     {
@@ -89,6 +89,9 @@ export function ExportModal() {
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    // MIDI instrument tracks count as audio sources for export purposes.
+    const hasMidiAudio = midiTracks.some((t) => !t.isMuted && t.notes.length > 0);
+
     if (timeline.duration <= 0) {
       errors.push('Timeline is empty. Add media before exporting.');
     }
@@ -98,8 +101,8 @@ export function ExportModal() {
         errors.push('No video tracks found. Add at least one video track.');
       }
 
-      if (audioTracks.length === 0) {
-        errors.push('No audio tracks found. Add at least one audio track.');
+      if (audioTracks.length === 0 && !hasMidiAudio) {
+        errors.push('No audio tracks found. Add an audio or instrument track.');
       }
     }
 
@@ -110,14 +113,18 @@ export function ExportModal() {
       errors.push('No exportable video file found. Re-import the video track and try again.');
     }
 
-    if (mode === 'video' && (!mainAudio || !mainAudio.file)) {
+    if (mode === 'video' && (!mainAudio || !mainAudio.file) && !hasMidiAudio) {
       errors.push('No exportable audio file found. Re-import the audio track and try again.');
     }
 
     if (mode === 'audio-only') {
       const activeAudioTracks = audioTracks.filter((t) => !t.isMuted && t.file);
       if (activeAudioTracks.length === 0) {
-        errors.push('No audio tracks available for audio-only export.');
+        errors.push(
+          hasMidiAudio
+            ? 'Audio-only export does not include instrument tracks yet — use video export for MIDI.'
+            : 'No audio tracks available for audio-only export.'
+        );
       }
     }
 
@@ -267,14 +274,46 @@ export function ExportModal() {
         return;
       }
 
-      // ── Video branch (unchanged) ───────────────────────────────────────────
+      // ── Video branch ───────────────────────────────────────────────────────
       const activeVideoTracks = videoTracks.filter((t) => !t.isMuted && t.file);
+      const activeMidiTracks = midiTracks.filter((t) => !t.isMuted && t.notes.length > 0);
 
-      if (activeVideoTracks.length === 0 && activeAudioTracks.length === 0) {
+      if (activeVideoTracks.length === 0 && activeAudioTracks.length === 0 && activeMidiTracks.length === 0) {
         throw new Error('No exportable tracks found. Add media and try again.');
       }
 
       setProgress(10);
+
+      // Offline-render each MIDI instrument track to a WAV, then treat it as an
+      // ordinary audio input placed at its timeline offset by the compositor.
+      let midiEntries: { id: string; file: File; offset: number; trimStart: number; trimEnd: number; volume: number; isMuted: boolean }[] = [];
+      if (activeMidiTracks.length > 0) {
+        setExportStage('Rendering instruments...');
+        const { renderMidiTrackToFile } = await import('@/lib/midi/renderMidi');
+        midiEntries = await Promise.all(
+          activeMidiTracks.map(async (t) => ({
+            id: t.id,
+            file: await renderMidiTrackToFile(
+              { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume },
+              musical.bpm
+            ),
+            offset: t.offset,
+            trimStart: 0,
+            trimEnd: t.duration + 3, // include the render's release tail; atrim clamps to EOF
+            volume: 1,               // track volume is already baked into the render
+            isMuted: false,
+          }))
+        );
+      }
+
+      // Unified audio inputs: recorded/imported audio files + rendered MIDI WAVs.
+      const audioEntries = [
+        ...activeAudioTracks.map((t) => ({
+          id: t.id, file: t.file!, offset: t.offset, trimStart: t.trimStart,
+          trimEnd: t.trimEnd, volume: t.volume, isMuted: t.isMuted,
+        })),
+        ...midiEntries,
+      ];
 
       const presetKey = selectedPreset as keyof typeof EXPORT_PRESETS;
       const outputPreset = {
@@ -289,7 +328,7 @@ export function ExportModal() {
       }));
 
       const videoInputCount = activeVideoTracks.length;
-      const compositorAudioTracks: CompositorAudioTrack[] = activeAudioTracks.map((t, i) => ({
+      const compositorAudioTracks: CompositorAudioTrack[] = audioEntries.map((t, i) => ({
         id: t.id, fileIndex: videoInputCount + i, offset: t.offset, trimStart: t.trimStart,
         trimEnd: t.trimEnd, volume: t.volume, isMuted: t.isMuted,
       }));
@@ -313,9 +352,9 @@ export function ExportModal() {
         for (let i = 0; i < activeVideoTracks.length; i++) {
           await ffmpeg.writeFile(`export-video-${i}.mp4`, await fetchFile(activeVideoTracks[i].file!));
         }
-        for (let i = 0; i < activeAudioTracks.length; i++) {
-          const f = activeAudioTracks[i].file!;
-          const ext = f.name.split('.').pop() ?? 'mp3';
+        for (let i = 0; i < audioEntries.length; i++) {
+          const f = audioEntries[i].file;
+          const ext = f.name.split('.').pop() ?? 'wav';
           await ffmpeg.writeFile(`export-audio-${i}.${ext}`, await fetchFile(f));
         }
         // drawtext needs a real font file — WASM ffmpeg has no system fonts, so
@@ -329,8 +368,8 @@ export function ExportModal() {
 
         const inputArgs: string[] = [];
         for (let i = 0; i < activeVideoTracks.length; i++) inputArgs.push('-i', `export-video-${i}.mp4`);
-        for (let i = 0; i < activeAudioTracks.length; i++) {
-          const ext = activeAudioTracks[i].file!.name.split('.').pop() ?? 'mp3';
+        for (let i = 0; i < audioEntries.length; i++) {
+          const ext = audioEntries[i].file.name.split('.').pop() ?? 'wav';
           inputArgs.push('-i', `export-audio-${i}.${ext}`);
         }
 
@@ -352,8 +391,8 @@ export function ExportModal() {
         setExportStage('Finalizing...');
         const data = await ffmpeg.readFile('export-output.mp4') as Uint8Array;
         for (let i = 0; i < activeVideoTracks.length; i++) { try { await ffmpeg.deleteFile(`export-video-${i}.mp4`); } catch { /* ignore */ } }
-        for (let i = 0; i < activeAudioTracks.length; i++) {
-          const ext = activeAudioTracks[i].file!.name.split('.').pop() ?? 'mp3';
+        for (let i = 0; i < audioEntries.length; i++) {
+          const ext = audioEntries[i].file.name.split('.').pop() ?? 'wav';
           try { await ffmpeg.deleteFile(`export-audio-${i}.${ext}`); } catch { /* ignore */ }
         }
         try { await ffmpeg.deleteFile('export-output.mp4'); } catch { /* ignore */ }

@@ -9,6 +9,12 @@ export interface UiState {
   selectedRegion: { start: number; end: number } | null;
   inspectorCollapsed: boolean;
   exportDialogOpen: boolean;
+  /** When false (default) the editor presents as a clean video editor; the DAW
+   *  controls (instruments, metronome, count-in, loop, mixer) stay hidden so a
+   *  first-time non-DAW user isn't overwhelmed. A toggle reveals them. */
+  advancedAudio: boolean;
+  /** The mixer modal (per-track volume/pan/mute/solo). */
+  mixerOpen: boolean;
   trackContextMenu: { trackId: string; x: number; y: number } | null;
   clipboardTrack:
     | (VideoTrack & { kind: 'video' })
@@ -27,6 +33,8 @@ export interface UiActions {
   pasteTrack: (trackId: string, offset?: number) => void;
   setSelectedRegionStart: (time: number) => void;
   setSelectedRegionEnd: (time: number) => void;
+  setAdvancedAudio: (on: boolean) => void;
+  setMixerOpen: (open: boolean) => void;
 }
 
 export const uiInitialState: UiState = {
@@ -34,6 +42,8 @@ export const uiInitialState: UiState = {
   selectedRegion: null,
   inspectorCollapsed: false,
   exportDialogOpen: false,
+  advancedAudio: false,
+  mixerOpen: false,
   trackContextMenu: null,
   clipboardTrack: null,
 };

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useEditorStore, AudioTrack, TextTrack, VideoTrack } from '@/stores/editorStore';
 import { calculateBpmMultiplier } from '@/lib/utils/bpm';
+import { INSTRUMENTS } from '@/lib/midi/instruments';
 import { Slider } from '@/components/ui/Slider';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -83,6 +84,12 @@ export function InspectorPanel() {
     setPitchEngine,
     isProcessingVideoSpeed,
     isSyncing,
+    midiTracks,
+    openPianoRoll,
+    setMidiInstrument,
+    transposeMidiTrack,
+    quantizeMidiTrack,
+    scaleMidiVelocity,
   } = useEditorStore();
 
   const [activeTab, setActiveTab] = useState<InspectorTab>('inspect');
@@ -118,7 +125,11 @@ export function InspectorPanel() {
     [audioTracks, selectedVideoTrack]
   );
 
-  const selectedTrack = selectedTextTrack || selectedAudioTrack || selectedVideoTrack || null;
+  const selectedMidiTrack = useMemo(
+    () => midiTracks.find((track) => selectedTrackIds.includes(track.id)),
+    [midiTracks, selectedTrackIds]
+  );
+  const selectedTrack = selectedTextTrack || selectedAudioTrack || selectedVideoTrack || selectedMidiTrack || null;
   const mediaTrack = selectedAudioTrack || selectedVideoTrack || null;
   const adjustmentTrack = selectedAudioTrack || linkedAudioTrack || null;
   const fontOptions = [
@@ -363,9 +374,11 @@ export function InspectorPanel() {
             <div>
               <div className="mb-4 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  {isTextTrack(selectedTrack) ? (
+                  {'text' in selectedTrack ? (
                     <span className="text-pink-400">T</span>
-                  ) : isAudioTrack(selectedTrack) ? (
+                  ) : 'notes' in selectedTrack ? (
+                    <Music className="h-5 w-5 text-violet-400" />
+                  ) : 'bpm' in selectedTrack ? (
                     <Music className="h-5 w-5 text-signal-400" />
                   ) : (
                     <Video className="h-5 w-5 text-cyan-500" />
@@ -385,6 +398,76 @@ export function InspectorPanel() {
                 </div>
               </div>
             </div>
+
+            {selectedMidiTrack && (
+              <div className="border-t border-zinc-800 pt-6 space-y-4">
+                <div>
+                  <Label className="section-label mb-2 block">Instrument</Label>
+                  <select
+                    value={selectedMidiTrack.instrumentId}
+                    onChange={(e) => setMidiInstrument(selectedMidiTrack.id, e.target.value)}
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100"
+                  >
+                    <optgroup label="Real instruments">
+                      {INSTRUMENTS.filter((i) => i.kind !== 'synth').map((i) => (
+                        <option key={i.id} value={i.id}>{i.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Synths">
+                      {INSTRUMENTS.filter((i) => i.kind === 'synth').map((i) => (
+                        <option key={i.id} value={i.id}>{i.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <Button
+                  variant="default"
+                  className="w-full gap-2 bg-violet-500 hover:bg-violet-400"
+                  onClick={() => openPianoRoll(selectedMidiTrack.id)}
+                >
+                  <Music className="h-4 w-4" /> Edit notes (Piano Roll)
+                </Button>
+
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <Label className="section-label">Volume</Label>
+                    <span className="font-mono text-xs text-zinc-400">{Math.round(selectedMidiTrack.volume * 100)}%</span>
+                  </div>
+                  <Slider
+                    min={0} max={1} step={0.01}
+                    value={[selectedMidiTrack.volume]}
+                    onValueChange={([v]) => updateTrack(selectedMidiTrack.id, { volume: v })}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Transpose</span>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => transposeMidiTrack(selectedMidiTrack.id, 12)}>Oct +</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => transposeMidiTrack(selectedMidiTrack.id, -12)}>Oct −</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => transposeMidiTrack(selectedMidiTrack.id, 1)}>+1</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => transposeMidiTrack(selectedMidiTrack.id, -1)}>−1</Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Quantize</span>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => quantizeMidiTrack(selectedMidiTrack.id, 0.25)}>1/16</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => quantizeMidiTrack(selectedMidiTrack.id, 0.5)}>1/8</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => quantizeMidiTrack(selectedMidiTrack.id, 1)}>1/4</Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Velocity</span>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => scaleMidiVelocity(selectedMidiTrack.id, 1.15)}>Louder</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => scaleMidiVelocity(selectedMidiTrack.id, 0.87)}>Softer</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => updateTrack(selectedMidiTrack.id, { isMuted: !selectedMidiTrack.isMuted })}>
+                    {selectedMidiTrack.isMuted ? 'Unmute' : 'Mute'}
+                  </Button>
+                </div>
+
+                <p className="text-xs text-zinc-500">{selectedMidiTrack.notes.length} notes · real instrument samples</p>
+              </div>
+            )}
 
             {selectedTextTrack && (
               <div className="border-t border-zinc-800 pt-6">

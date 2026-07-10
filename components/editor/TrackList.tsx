@@ -5,17 +5,19 @@ import { useMemo, useState } from 'react';
 import { useEditorStore } from '@/stores/editorStore';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
-import { Music, Video, Type, Trash2, Lock, Unlock, Eye, EyeOff, Mic, Plus, Film } from 'lucide-react';
+import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
+import { Music, Video, Type, Trash2, Lock, Unlock, Eye, EyeOff, Mic, Plus, Film, Piano, Copy, CopyPlus, ClipboardPaste, Scissors, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { RecordingPanel } from '@/components/editor/RecordingPanel';
 
 type RailMenu = 'tracks' | 'upload' | 'record' | 'text';
 
 export function TrackList() {
-  const { 
-    videoTracks, 
-    audioTracks, 
+  const {
+    videoTracks,
+    audioTracks,
     textTracks,
+    midiTracks,
     selectedTrackIds,
     removeTrack,
     updateTrack,
@@ -24,7 +26,15 @@ export function TrackList() {
     addVideoTrack,
     addAudioTrack,
     addTextTrack,
+    copyTrack,
+    pasteTrack,
+    duplicateTrack,
+    splitTrack,
+    openPianoRoll,
+    clipboardTrack,
+    timeline,
   } = useEditorStore();
+  const rowMenu = useContextMenu();
   const [activeMenu, setActiveMenu] = useState<RailMenu>('tracks');
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
   const [newTextValue, setNewTextValue] = useState('New text');
@@ -55,11 +65,26 @@ export function TrackList() {
   const allTracks = useMemo(
     () => [
       ...audioTracks.map((t) => ({ ...t, type: 'audio' as const })),
+      ...midiTracks.map((t) => ({ ...t, type: 'midi' as const })),
       ...videoTracks.map((t) => ({ ...t, type: 'video' as const })),
       ...textTracks.map((t) => ({ ...t, type: 'text' as const })),
     ],
-    [audioTracks, textTracks, videoTracks]
+    [audioTracks, midiTracks, textTracks, videoTracks]
   );
+
+  const buildRowMenu = (track: (typeof allTracks)[number]): MenuItem[] => [
+    { label: 'Copy', icon: Copy, onSelect: () => copyTrack(track.id) },
+    { label: 'Paste', icon: ClipboardPaste, disabled: !clipboardTrack, onSelect: () => pasteTrack(track.id, timeline.currentTime) },
+    { label: 'Duplicate', icon: CopyPlus, onSelect: () => duplicateTrack(track.id) },
+    ...(track.type !== 'midi'
+      ? [{ label: 'Split at playhead', icon: Scissors, onSelect: () => splitTrack(track.id, timeline.currentTime) } as MenuItem]
+      : [{ label: 'Edit notes (Piano Roll)', icon: Piano, onSelect: () => openPianoRoll(track.id) } as MenuItem]),
+    { type: 'separator' },
+    { label: track.isMuted ? 'Unmute' : 'Mute', icon: track.isMuted ? VolumeX : Volume2, keepOpen: true, onSelect: () => toggleMute(track.id, track.type, track.isMuted) },
+    { label: track.isLocked ? 'Unlock' : 'Lock', icon: track.isLocked ? Unlock : Lock, keepOpen: true, onSelect: () => toggleLock(track.id, track.type, track.isLocked) },
+    { type: 'separator' },
+    { label: 'Delete track', icon: Trash2, danger: true, onSelect: () => setPendingDeleteId(track.id) },
+  ];
 
   const handleTrackClick = (trackId: string) => {
     setSelectedTrackIds([trackId]);
@@ -88,7 +113,7 @@ export function TrackList() {
     input.click();
   };
 
-  const toggleMute = (trackId: string, trackType: 'audio' | 'video' | 'text', currentMuted: boolean) => {
+  const toggleMute = (trackId: string, trackType: 'audio' | 'video' | 'text' | 'midi', currentMuted: boolean) => {
     if (trackType === 'text') {
       updateTextTrack(trackId, { isMuted: !currentMuted });
       return;
@@ -96,7 +121,7 @@ export function TrackList() {
     updateTrack(trackId, { isMuted: !currentMuted });
   };
 
-  const toggleLock = (trackId: string, trackType: 'audio' | 'video' | 'text', currentLocked: boolean) => {
+  const toggleLock = (trackId: string, trackType: 'audio' | 'video' | 'text' | 'midi', currentLocked: boolean) => {
     if (trackType === 'text') {
       updateTextTrack(trackId, { isLocked: !currentLocked });
       return;
@@ -220,12 +245,15 @@ export function TrackList() {
                   const isSelected = selectedTrackIds.includes(track.id);
                   const isAudio = track.type === 'audio';
                   const isText = track.type === 'text';
-                  const iconColor = isText ? 'text-pink-400' : isAudio ? 'text-signal-400' : 'text-cyan-400';
+                  const isMidi = track.type === 'midi';
+                  const iconColor = isText ? 'text-pink-400' : isMidi ? 'text-violet-400' : isAudio ? 'text-signal-400' : 'text-cyan-400';
 
                   return (
                     <div
                       key={track.id}
                       onClick={() => handleTrackClick(track.id)}
+                      onDoubleClick={() => { if (isMidi) openPianoRoll(track.id); }}
+                      onContextMenu={(e) => { setSelectedTrackIds([track.id]); rowMenu.open(e, buildRowMenu(track)); }}
                       className={`group cursor-pointer rounded-lg border px-2.5 py-2 transition-all ${
                         isSelected
                           ? 'border-signal-400/60 bg-signal-400/10 ring-1 ring-signal-400/20'
@@ -234,7 +262,7 @@ export function TrackList() {
                     >
                       <div className="flex items-center gap-2">
                         <div className={`shrink-0 ${iconColor}`}>
-                          {isText ? <Type className="h-3.5 w-3.5" /> : isAudio ? <Music className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+                          {isText ? <Type className="h-3.5 w-3.5" /> : isMidi ? <Piano className="h-3.5 w-3.5" /> : isAudio ? <Music className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -242,6 +270,7 @@ export function TrackList() {
                           <div className="mt-0.5 text-[10px] text-zinc-500">
                             {track.duration.toFixed(1)}s
                             {isAudio && 'bpm' in track && <> &middot; {track.bpm.toFixed(0)} BPM</>}
+                            {isMidi && 'notes' in track && <> &middot; {track.notes.length} notes</>}
                             {isText && 'text' in track && <> &middot; {track.text.slice(0, 12)}</>}
                           </div>
                         </div>
@@ -339,6 +368,8 @@ export function TrackList() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {rowMenu.node}
     </div>
   );
 }

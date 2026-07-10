@@ -22,6 +22,19 @@ import {
 import { saveTutorialProgress, clearTutorialProgress, saveTutorialProgressV2, clearTutorialProgressV2 } from '@/lib/tutorial/tutorialPersistence';
 import { DEFAULT_COLOR_ADJUSTMENTS, type ColorAdjustments } from '@/lib/video/colorAdjustments';
 import type { TitleStyle } from '@/lib/video/titleStyles';
+import {
+  type MidiNote,
+  beatsToSeconds,
+  secondsToBeats,
+  contentLengthBeats,
+  quantizeNotes,
+  transposeNotes,
+  scaleVelocities,
+} from '@/lib/midi/noteUtils';
+import { DEFAULT_INSTRUMENT_ID, getInstrument } from '@/lib/midi/instruments';
+import { midiPlaybackEngine, type PlayableMidiTrack } from '@/lib/midi/playbackEngine';
+import { metronomeEngine } from '@/lib/audio/metronome';
+import { parseMidiFile } from '@/lib/midi/midiImport';
 import { TUTORIAL_STEPS, QUICK_TOUR_STEPS } from '@/lib/tutorial/tutorialSteps';
 import type { TutorialMode } from './slices/tutorialSlice';
 
@@ -46,6 +59,7 @@ type EditorSnapshot = {
   videoTracks: VideoTrack[];
   audioTracks: AudioTrack[];
   textTracks: TextTrack[];
+  midiTracks: MidiTrack[];
   timelineMarkers: number[];
   timeline: TimelineState;
   musical: MusicalContext;
@@ -58,6 +72,7 @@ type EditorSnapshot = {
     | (VideoTrack & { kind: 'video' })
     | (AudioTrack & { kind: 'audio' })
     | (TextTrack & { kind: 'text' })
+    | (MidiTrack & { kind: 'midi' })
     | null;
   timeDisplayMode: TimeDisplayMode;
   timeUnits: 'ms' | 'beat' | 'frame';
@@ -92,6 +107,8 @@ export interface VideoTrack {
   trimEnd: number;
   volume: number;
   isMuted: boolean;
+  pan?: number;        // -1 (L) … 0 (center) … 1 (R); optional for back-compat
+  isSoloed?: boolean;  // mixer solo; optional for back-compat
   isLocked: boolean;
   linkedAudioTrackId?: string;
   hasEmbeddedAudio: boolean;
@@ -122,6 +139,8 @@ export interface AudioTrack {
   trimEnd: number;
   volume: number;
   isMuted: boolean;
+  pan?: number;        // -1 (L) … 0 (center) … 1 (R); optional for back-compat
+  isSoloed?: boolean;  // mixer solo; optional for back-compat
   isLocked: boolean;
   isMaster: boolean;
   bpm: number;
@@ -158,6 +177,23 @@ export interface TextTrack {
   fadeOutDuration: number;
 }
 
+export interface MidiTrack {
+  id: string;
+  name: string;
+  instrumentId: string;
+  notes: MidiNote[];
+  offset: number;        // timeline seconds
+  trimStart: number;     // always 0 — kept so timeline-duration math is uniform
+  trimEnd: number;       // === duration (seconds)
+  duration: number;      // seconds, derived from note content at current BPM
+  volume: number;        // 0–1
+  isMuted: boolean;
+  pan?: number;          // -1 (L) … 0 (center) … 1 (R); optional for back-compat
+  isSoloed?: boolean;    // mixer solo; optional for back-compat
+  isLocked: boolean;
+  transpose: number;     // semitones, applied at playback/render
+}
+
 export interface TimelineState {
   currentTime: number;
   duration: number;
@@ -175,6 +211,7 @@ export interface MusicalContext {
   key: string;
   showMetronome: boolean;
   metronomeVolume: number;
+  countInBars: number;
 }
 
 export interface ExportSettings {
@@ -189,6 +226,7 @@ export interface EditorState {
   videoTracks: VideoTrack[];
   audioTracks: AudioTrack[];
   textTracks: TextTrack[];
+  midiTracks: MidiTrack[];
 
   // ── Timeline / Musical (timelineSlice) ───────────────────────────────────
   timelineMarkers: number[];
@@ -205,11 +243,14 @@ export interface EditorState {
   selectedRegion: { start: number; end: number } | null;
   inspectorCollapsed: boolean;
   exportDialogOpen: boolean;
+  advancedAudio: boolean;
+  mixerOpen: boolean;
   trackContextMenu: { trackId: string; x: number; y: number } | null;
   clipboardTrack:
     | (VideoTrack & { kind: 'video' })
     | (AudioTrack & { kind: 'audio' })
     | (TextTrack & { kind: 'text' })
+    | (MidiTrack & { kind: 'midi' })
     | null;
 
   // ── Processing (processingSlice) ──────────────────────────────────────────
@@ -240,6 +281,9 @@ export interface EditorState {
   tutorialQuickStepIndex: number;
   tutorialDevStepIndex: number;
 
+  // ── MIDI piano-roll UI (not persisted) ────────────────────────────────────
+  pianoRollTrackId: string | null;
+
   // ── Project / Error ───────────────────────────────────────────────────────
   currentProjectId: string | null;
   lastError: string | null;
@@ -250,6 +294,13 @@ export interface EditorState {
   addVideoTrack: (file: File) => Promise<void>;
   addAudioTrack: (file: File) => Promise<void>;
   addTextTrack: (text: string) => void;
+  addMidiTrack: (instrumentId?: string) => string;
+  importMidiFile: (file: File) => Promise<void>;
+  updateMidiTrackNotes: (id: string, notes: MidiNote[], commitHistory?: boolean) => void;
+  setMidiInstrument: (id: string, instrumentId: string) => void;
+  transposeMidiTrack: (id: string, semitones: number) => void;
+  quantizeMidiTrack: (id: string, gridBeats: number) => void;
+  scaleMidiVelocity: (id: string, factor: number) => void;
   removeTrack: (id: string) => void;
   updateTrack: (id: string, updates: Partial<VideoTrack | AudioTrack | TextTrack>) => void;
   updateVideoPreviewLayout: (
@@ -275,9 +326,12 @@ export interface EditorState {
   toggleTimeDisplayMode: () => void;
   setTimeUnits: (units: 'ms' | 'beat' | 'frame') => void;
   setMetronomeVisibility: (visible: boolean) => void;
+  setMetronomeVolume: (volume: number) => void;
+  setCountInBars: (bars: number) => void;
   setZoom: (zoom: number, anchorX?: number) => void;
   setScrollX: (scrollX: number) => void;
   setSnapToGrid: (snap: boolean) => void;
+  setLoop: (loop: { start: number; end: number } | null) => void;
 
   // playbackSlice actions
   play: () => void;
@@ -294,6 +348,14 @@ export interface EditorState {
   pasteTrack: (trackId: string, offset?: number) => void;
   setSelectedRegionStart: (time: number) => void;
   setSelectedRegionEnd: (time: number) => void;
+  setAdvancedAudio: (on: boolean) => void;
+  setMixerOpen: (open: boolean) => void;
+  setTrackVolume: (id: string, volume: number) => void;
+  setTrackPan: (id: string, pan: number) => void;
+  setTrackMuted: (id: string, muted: boolean) => void;
+  toggleTrackSolo: (id: string) => void;
+  openPianoRoll: (trackId: string) => void;
+  closePianoRoll: () => void;
 
   // processingSlice actions
   timeStretchTrack: (trackId: string, ratio: number, maintainPitch: boolean, syncOffsetMs?: number) => Promise<void>;
@@ -341,7 +403,7 @@ export interface EditorState {
 
 // ─── Pure helper functions ────────────────────────────────────────────────────
 
-function cloneTrackHistory<T extends VideoTrack | AudioTrack | TextTrack>(track: T): T {
+function cloneTrackHistory<T extends VideoTrack | AudioTrack | TextTrack | MidiTrack>(track: T): T {
   const cloned = { ...track } as T;
   if ('effects' in track) (cloned as VideoTrack | AudioTrack).effects = [...track.effects];
   if ('waveformData' in track && track.waveformData)
@@ -357,6 +419,7 @@ function snapshotState(state: EditorState): EditorSnapshot {
     videoTracks: state.videoTracks.map(cloneTrackHistory),
     audioTracks: state.audioTracks.map(cloneTrackHistory),
     textTracks: state.textTracks.map(cloneTrackHistory),
+    midiTracks: state.midiTracks.map((t) => ({ ...t, notes: t.notes.map((n) => ({ ...n })) })),
     timelineMarkers: [...state.timelineMarkers],
     timeline: { ...state.timeline },
     musical: { ...state.musical, timeSignature: { ...state.musical.timeSignature } },
@@ -405,6 +468,7 @@ function restoreSnapshot(set: (fn: (state: EditorState) => void) => void, snapsh
       return r;
     });
     state.textTracks = snapshot.textTracks.map(cloneTrackHistory);
+    state.midiTracks = snapshot.midiTracks.map((t) => ({ ...t, notes: t.notes.map((n) => ({ ...n })) }));
     state.timelineMarkers = [...snapshot.timelineMarkers];
     state.timeline = { ...snapshot.timeline };
     state.musical = { ...snapshot.musical, timeSignature: { ...snapshot.musical.timeSignature } };
@@ -458,7 +522,7 @@ function sortUniqueMarkers(markers: number[], epsilon = 0.03) {
   return deduped;
 }
 
-function getTrackVisibleDuration(track: VideoTrack | AudioTrack | TextTrack) {
+function getTrackVisibleDuration(track: VideoTrack | AudioTrack | TextTrack | MidiTrack) {
   return Math.max(0.01, track.trimEnd - track.trimStart);
 }
 
@@ -466,10 +530,48 @@ function recalculateTimelineDuration(state: {
   videoTracks: VideoTrack[];
   audioTracks: AudioTrack[];
   textTracks: TextTrack[];
+  midiTracks: MidiTrack[];
 }) {
-  return [...state.videoTracks, ...state.audioTracks, ...state.textTracks].reduce((max, track) => {
+  return [...state.videoTracks, ...state.audioTracks, ...state.textTracks, ...state.midiTracks].reduce((max, track) => {
     return Math.max(max, Math.max(0, track.offset) + getTrackVisibleDuration(track));
   }, 0);
+}
+
+/** Recompute a MIDI clip's seconds-length from its notes at the given BPM. */
+function syncMidiTrackDuration(track: MidiTrack, bpm: number) {
+  const durationSec = beatsToSeconds(contentLengthBeats(track.notes), bpm);
+  track.duration = durationSec;
+  track.trimStart = 0;
+  track.trimEnd = durationSec;
+}
+
+/** Build the shape the realtime preview engine needs from store MIDI tracks. */
+function toPlayableMidi(tracks: MidiTrack[], anySoloed: boolean): PlayableMidiTrack[] {
+  return tracks.map((t) => ({
+    id: t.id, instrumentId: t.instrumentId, notes: t.notes,
+    offset: t.offset, volume: t.volume,
+    // Fold solo into the effective mute: soloed-out tracks are silenced.
+    isMuted: t.isMuted || (anySoloed && !t.isSoloed),
+    pan: t.pan ?? 0, transpose: t.transpose,
+  }));
+}
+
+/** True when any audio-bearing track (video/audio/MIDI) is soloed. */
+function anyTrackSoloed(state: EditorState): boolean {
+  return (
+    state.videoTracks.some((t) => t.isSoloed) ||
+    state.audioTracks.some((t) => t.isSoloed) ||
+    state.midiTracks.some((t) => t.isSoloed)
+  );
+}
+
+function cloneMidiTrack(track: MidiTrack, overrides: Partial<MidiTrack> = {}): MidiTrack {
+  return {
+    ...track,
+    id: crypto.randomUUID(),
+    notes: track.notes.map((n) => ({ ...n, id: `${n.id}-${Math.random().toString(36).slice(2, 7)}` })),
+    ...overrides,
+  };
 }
 
 function cloneVideoTrack(track: VideoTrack, overrides: Partial<VideoTrack> = {}): VideoTrack {
@@ -588,6 +690,7 @@ export const useEditorStore = create<EditorState>()(
         ...uiInitialState,
         ...processingInitialState,
         ...tutorialInitialState,
+        pianoRollTrackId: null,
         currentProjectId: null,
         lastError: null,
 
@@ -680,6 +783,127 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
+        addMidiTrack: (instrumentId?: string) => {
+          pushHistory(get());
+          const id = crypto.randomUUID();
+          const chosen = instrumentId && getInstrument(instrumentId).id === instrumentId
+            ? instrumentId
+            : DEFAULT_INSTRUMENT_ID;
+          set((state) => {
+            const inst = getInstrument(chosen);
+            const emptyBars = 4; // start with a 2-bar empty clip in 4/4
+            const durationSec = beatsToSeconds(emptyBars, state.musical.bpm);
+            const count = state.midiTracks.length + 1;
+            state.midiTracks.push({
+              id,
+              name: `${inst.label} ${count}`,
+              instrumentId: chosen,
+              notes: [],
+              offset: state.timeline.currentTime,
+              trimStart: 0,
+              trimEnd: durationSec,
+              duration: durationSec,
+              volume: 0.9,
+              isMuted: false,
+              isLocked: false,
+              transpose: 0,
+            });
+            state.timeline.duration = recalculateTimelineDuration(state);
+            state.selectedTrackIds = [id];
+          });
+          // Warm the sampler so the first note isn't silent.
+          midiPlaybackEngine.preload([chosen]).catch(() => {});
+          return id;
+        },
+
+        importMidiFile: async (file: File) => {
+          try {
+            const parsed = parseMidiFile(await file.arrayBuffer(), file.name);
+            if (parsed.tracks.length === 0) {
+              set((state) => { state.lastError = 'That MIDI file has no note data.'; });
+              return;
+            }
+            pushHistory(get());
+            const newIds: string[] = [];
+            set((state) => {
+              if (parsed.bpm && parsed.bpm > 0) state.musical.bpm = parsed.bpm;
+              const bpm = state.musical.bpm;
+              for (const t of parsed.tracks) {
+                const id = crypto.randomUUID();
+                newIds.push(id);
+                const track: MidiTrack = {
+                  id,
+                  name: t.name,
+                  instrumentId: t.instrumentId,
+                  notes: t.notes,
+                  offset: state.timeline.currentTime,
+                  trimStart: 0,
+                  trimEnd: 0,
+                  duration: 0,
+                  volume: 0.9,
+                  isMuted: false,
+                  isLocked: false,
+                  transpose: 0,
+                };
+                syncMidiTrackDuration(track, bpm);
+                state.midiTracks.push(track);
+              }
+              state.timeline.duration = recalculateTimelineDuration(state);
+              state.selectedTrackIds = newIds.slice(-1);
+            });
+            midiPlaybackEngine.preload(parsed.tracks.map((t) => t.instrumentId)).catch(() => {});
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Failed to import MIDI file';
+            console.error('MIDI import failed:', error);
+            set((state) => { state.lastError = msg; });
+          }
+        },
+
+        updateMidiTrackNotes: (id: string, notes: MidiNote[], commitHistory = true) => {
+          if (commitHistory) pushHistoryCoalesced(get(), `midiNotes:${id}`);
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (!mt) return;
+            mt.notes = notes;
+            syncMidiTrackDuration(mt, state.musical.bpm);
+            state.timeline.duration = recalculateTimelineDuration(state);
+          });
+        },
+
+        setMidiInstrument: (id: string, instrumentId: string) => {
+          pushHistory(get());
+          const chosen = getInstrument(instrumentId).id;
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (mt) mt.instrumentId = chosen;
+          });
+          midiPlaybackEngine.preload([chosen]).catch(() => {});
+        },
+
+        transposeMidiTrack: (id: string, semitones: number) => {
+          pushHistory(get());
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (mt) mt.notes = transposeNotes(mt.notes, semitones);
+          });
+        },
+
+        quantizeMidiTrack: (id: string, gridBeats: number) => {
+          pushHistory(get());
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (mt) mt.notes = quantizeNotes(mt.notes, gridBeats);
+          });
+        },
+
+        scaleMidiVelocity: (id: string, factor: number) => {
+          pushHistory(get());
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (mt) mt.notes = scaleVelocities(mt.notes, factor);
+          });
+        },
+
         removeTrack: (id: string) => {
           pushHistory(get());
           set((state) => {
@@ -702,6 +926,7 @@ export const useEditorStore = create<EditorState>()(
             state.videoTracks = state.videoTracks.filter((t) => t.id !== id);
             state.audioTracks = state.audioTracks.filter((t) => t.id !== id);
             state.textTracks = state.textTracks.filter((t) => t.id !== id);
+            state.midiTracks = state.midiTracks.filter((t) => t.id !== id);
             state.selectedTrackIds = state.selectedTrackIds.filter((tid) => tid !== id);
             if (state.trackContextMenu?.trackId === id) state.trackContextMenu = null;
             if (state.clipboardTrack?.id === id) state.clipboardTrack = null;
@@ -720,6 +945,12 @@ export const useEditorStore = create<EditorState>()(
             if (tt) {
               Object.assign(tt, updates);
               tt.duration = getTrackVisibleDuration(tt);
+              state.timeline.duration = recalculateTimelineDuration(state);
+            }
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (mt) {
+              // Only volume/mute/lock/name/offset flow through here — never notes.
+              Object.assign(mt, updates);
               state.timeline.duration = recalculateTimelineDuration(state);
             }
           });
@@ -807,6 +1038,12 @@ export const useEditorStore = create<EditorState>()(
             if (tt) {
               const dup = cloneTextTrack(tt, { offset: tt.offset + getTrackVisibleDuration(tt) });
               state.textTracks.push(dup);
+              state.selectedTrackIds = [dup.id];
+            }
+            const mt = state.midiTracks.find((t) => t.id === trackId);
+            if (mt) {
+              const dup = cloneMidiTrack(mt, { offset: mt.offset + getTrackVisibleDuration(mt) });
+              state.midiTracks.push(dup);
               state.selectedTrackIds = [dup.id];
             }
             state.timeline.duration = recalculateTimelineDuration(state);
@@ -937,6 +1174,11 @@ export const useEditorStore = create<EditorState>()(
             state.timeline.currentTime = next;
             if (state.timeline.isPlaying) playbackStartMs = performance.now() - next * 1000;
           });
+          // Reschedule MIDI from the new playhead so it stays in sync after a seek.
+          const s = get();
+          if (s.timeline.isPlaying && s.midiTracks.length > 0) {
+            midiPlaybackEngine.start(toPlayableMidi(s.midiTracks, anyTrackSoloed(s)), s.timeline.currentTime, s.musical.bpm).catch(() => {});
+          }
         },
 
         addTimelineMarker: (time?: number) => {
@@ -982,7 +1224,12 @@ export const useEditorStore = create<EditorState>()(
 
         setBPM: (bpm: number) => {
           pushHistory(get());
-          set((state) => { state.musical.bpm = bpm; });
+          set((state) => {
+            state.musical.bpm = bpm;
+            // MIDI clip lengths are BPM-relative — rescale them so the timeline stays honest.
+            for (const mt of state.midiTracks) syncMidiTrackDuration(mt, bpm);
+            state.timeline.duration = recalculateTimelineDuration(state);
+          });
         },
 
         setTimeSignature: (numerator: number, denominator: number) => {
@@ -1007,6 +1254,26 @@ export const useEditorStore = create<EditorState>()(
 
         setMetronomeVisibility: (visible: boolean) => {
           set((state) => { state.musical.showMetronome = visible; });
+          // Reflect a live toggle immediately during playback.
+          const s = get();
+          if (s.timeline.isPlaying) {
+            if (visible) {
+              const startBeat = secondsToBeats(s.timeline.currentTime, s.musical.bpm);
+              metronomeEngine.start(s.musical.bpm, s.musical.timeSignature.numerator, startBeat, s.musical.metronomeVolume);
+            } else {
+              metronomeEngine.stop();
+            }
+          }
+        },
+
+        setMetronomeVolume: (volume: number) => {
+          const v = Math.max(0, Math.min(1, volume));
+          set((state) => { state.musical.metronomeVolume = v; });
+          metronomeEngine.setVolume(v);
+        },
+
+        setCountInBars: (bars: number) => {
+          set((state) => { state.musical.countInBars = Math.max(0, Math.min(4, Math.round(bars))); });
         },
 
         setZoom: (zoom: number, anchorX?: number) => {
@@ -1038,39 +1305,92 @@ export const useEditorStore = create<EditorState>()(
           set((state) => { state.timeline.snapToGrid = snap; });
         },
 
+        setLoop: (loop: { start: number; end: number } | null) => {
+          set((state) => {
+            state.timeline.loop = loop && loop.end > loop.start ? { start: Math.max(0, loop.start), end: loop.end } : null;
+          });
+        },
+
         // ── playbackSlice actions ───────────────────────────────────────────
 
         play: () => {
           if (get().timeline.isPlaying) return;
           AudioContextManager.resume().catch(() => {});
-          playbackStartMs = performance.now() - get().timeline.currentTime * 1000;
-          const tick = () => {
-            const state = get();
-            if (!state.timeline.isPlaying) return;
-            const elapsed = (performance.now() - playbackStartMs) / 1000;
-            const duration = state.timeline.duration;
-            const nextTime = duration > 0 ? Math.min(elapsed, duration) : elapsed;
-            set((draft) => { draft.timeline.currentTime = nextTime; });
-            if (duration > 0 && nextTime >= duration) {
-              set((draft) => { draft.timeline.isPlaying = false; });
-              playbackRafId = null;
-              return;
-            }
+          const { musical } = get();
+          const beatsPerBar = musical.timeSignature.numerator;
+
+          // Actually kick off the transport. Split out so a count-in can delay it.
+          const begin = () => {
+            if (get().timeline.isPlaying) return;
+            playbackStartMs = performance.now() - get().timeline.currentTime * 1000;
+            const tick = () => {
+              const state = get();
+              if (!state.timeline.isPlaying) return;
+              const elapsed = (performance.now() - playbackStartMs) / 1000;
+              const duration = state.timeline.duration;
+              const loop = state.timeline.loop;
+              // Loop: when the playhead passes the loop end, jump back to the start
+              // and reschedule MIDI voices + the click from there.
+              if (loop && loop.end > loop.start && elapsed >= loop.end) {
+                playbackStartMs = performance.now() - loop.start * 1000;
+                set((draft) => { draft.timeline.currentTime = loop.start; });
+                if (state.midiTracks.length > 0) {
+                  midiPlaybackEngine.start(toPlayableMidi(state.midiTracks, anyTrackSoloed(state)), loop.start, state.musical.bpm).catch(() => {});
+                }
+                if (state.musical.showMetronome) {
+                  metronomeEngine.start(state.musical.bpm, beatsPerBar, secondsToBeats(loop.start, state.musical.bpm), state.musical.metronomeVolume);
+                }
+                playbackRafId = requestAnimationFrame(tick);
+                return;
+              }
+              const nextTime = duration > 0 ? Math.min(elapsed, duration) : elapsed;
+              set((draft) => { draft.timeline.currentTime = nextTime; });
+              if (!loop && duration > 0 && nextTime >= duration) {
+                set((draft) => { draft.timeline.isPlaying = false; });
+                playbackRafId = null;
+                midiPlaybackEngine.stop();
+                metronomeEngine.stop();
+                return;
+              }
+              playbackRafId = requestAnimationFrame(tick);
+            };
+            set((state) => { state.timeline.isPlaying = true; });
+            if (playbackRafId !== null) cancelAnimationFrame(playbackRafId);
             playbackRafId = requestAnimationFrame(tick);
+            // Schedule MIDI voices + the click from the current playhead, in sync.
+            const s = get();
+            if (s.midiTracks.length > 0) {
+              midiPlaybackEngine.start(toPlayableMidi(s.midiTracks, anyTrackSoloed(s)), s.timeline.currentTime, s.musical.bpm).catch(() => {});
+            }
+            if (s.musical.showMetronome) {
+              metronomeEngine.start(s.musical.bpm, beatsPerBar, secondsToBeats(s.timeline.currentTime, s.musical.bpm), s.musical.metronomeVolume);
+            }
           };
-          set((state) => { state.timeline.isPlaying = true; });
-          if (playbackRafId !== null) cancelAnimationFrame(playbackRafId);
-          playbackRafId = requestAnimationFrame(tick);
+
+          // Count-in: play N bars of clicks first, then start. Skipped if the
+          // metronome is off or count-in is 0.
+          const countInBeats = musical.showMetronome ? musical.countInBars * beatsPerBar : 0;
+          if (countInBeats > 0) {
+            metronomeEngine.countIn(countInBeats, musical.bpm, beatsPerBar, musical.metronomeVolume)
+              .then(() => { if (!get().timeline.isPlaying) begin(); })
+              .catch(() => begin());
+          } else {
+            begin();
+          }
         },
 
         pause: () => {
           set((state) => { state.timeline.isPlaying = false; });
           if (playbackRafId !== null) { cancelAnimationFrame(playbackRafId); playbackRafId = null; }
+          midiPlaybackEngine.stop();
+          metronomeEngine.stop();
         },
 
         stop: () => {
           set((state) => { state.timeline.isPlaying = false; state.timeline.currentTime = 0; });
           if (playbackRafId !== null) { cancelAnimationFrame(playbackRafId); playbackRafId = null; }
+          midiPlaybackEngine.stop();
+          metronomeEngine.stop();
         },
 
         // ── uiSlice actions ─────────────────────────────────────────────────
@@ -1087,6 +1407,83 @@ export const useEditorStore = create<EditorState>()(
           set((state) => { state.exportDialogOpen = open; });
         },
 
+        setAdvancedAudio: (on: boolean) => {
+          set((state) => { state.advancedAudio = on; });
+        },
+
+        setMixerOpen: (open: boolean) => {
+          set((state) => { state.mixerOpen = open; });
+        },
+
+        // ── Mixer actions (video/audio/MIDI by id) ──────────────────────────
+        setTrackVolume: (id: string, volume: number) => {
+          const v = Math.max(0, Math.min(1, volume));
+          pushHistoryCoalesced(get(), `setTrackVolume:${id}`);
+          set((state) => {
+            const t = state.videoTracks.find((x) => x.id === id)
+              ?? state.audioTracks.find((x) => x.id === id)
+              ?? state.midiTracks.find((x) => x.id === id);
+            if (t) t.volume = v;
+          });
+          const s = get();
+          const mt = s.midiTracks.find((x) => x.id === id);
+          if (s.timeline.isPlaying && mt) {
+            const anySolo = anyTrackSoloed(s);
+            midiPlaybackEngine.setTrackGain(id, v, mt.isMuted || (anySolo && !mt.isSoloed));
+          }
+          // video/audio volume re-applies via VideoPreview's element effects.
+        },
+
+        setTrackPan: (id: string, pan: number) => {
+          const p = Math.max(-1, Math.min(1, pan));
+          pushHistoryCoalesced(get(), `setTrackPan:${id}`);
+          set((state) => {
+            const t = state.videoTracks.find((x) => x.id === id)
+              ?? state.audioTracks.find((x) => x.id === id)
+              ?? state.midiTracks.find((x) => x.id === id);
+            if (t) t.pan = p;
+          });
+          const s = get();
+          if (s.timeline.isPlaying && s.midiTracks.some((x) => x.id === id)) {
+            midiPlaybackEngine.setTrackPan(id, p);
+          }
+          // video/audio pan re-applies via VideoPreview's element effects.
+        },
+
+        setTrackMuted: (id: string, muted: boolean) => {
+          pushHistoryCoalesced(get(), `setTrackMuted:${id}`);
+          set((state) => {
+            const t = state.videoTracks.find((x) => x.id === id)
+              ?? state.audioTracks.find((x) => x.id === id)
+              ?? state.midiTracks.find((x) => x.id === id);
+            if (t) t.isMuted = muted;
+          });
+          const s = get();
+          const mt = s.midiTracks.find((x) => x.id === id);
+          if (s.timeline.isPlaying && mt) {
+            const anySolo = anyTrackSoloed(s);
+            midiPlaybackEngine.setTrackGain(id, mt.volume, mt.isMuted || (anySolo && !mt.isSoloed));
+          }
+        },
+
+        toggleTrackSolo: (id: string) => {
+          pushHistoryCoalesced(get(), `toggleTrackSolo:${id}`);
+          set((state) => {
+            const t = state.videoTracks.find((x) => x.id === id)
+              ?? state.audioTracks.find((x) => x.id === id)
+              ?? state.midiTracks.find((x) => x.id === id);
+            if (t) t.isSoloed = !t.isSoloed;
+          });
+          // Solo is global — recompute audibility for every MIDI voice.
+          const s = get();
+          if (s.timeline.isPlaying) {
+            const anySolo = anyTrackSoloed(s);
+            for (const mt of s.midiTracks) {
+              midiPlaybackEngine.setTrackGain(mt.id, mt.volume, mt.isMuted || (anySolo && !mt.isSoloed));
+            }
+          }
+        },
+
         openTrackContextMenu: (trackId: string, x: number, y: number) => {
           set((state) => { state.trackContextMenu = { trackId, x, y }; });
         },
@@ -1100,9 +1497,11 @@ export const useEditorStore = create<EditorState>()(
             const vt = state.videoTracks.find((t) => t.id === trackId);
             const at = state.audioTracks.find((t) => t.id === trackId);
             const tt = state.textTracks.find((t) => t.id === trackId);
+            const mt = state.midiTracks.find((t) => t.id === trackId);
             if (vt) { state.clipboardTrack = { ...vt, kind: 'video' }; state.selectedTrackIds = [trackId]; }
             else if (at) { state.clipboardTrack = { ...at, kind: 'audio' }; state.selectedTrackIds = [trackId]; }
             else if (tt) { state.clipboardTrack = { ...tt, kind: 'text' }; state.selectedTrackIds = [trackId]; }
+            else if (mt) { state.clipboardTrack = { ...mt, kind: 'midi' }; state.selectedTrackIds = [trackId]; }
           });
         },
 
@@ -1119,9 +1518,13 @@ export const useEditorStore = create<EditorState>()(
               const pasted = cloneAudioTrack(state.clipboardTrack, { offset: targetOffset });
               state.audioTracks.push(pasted);
               state.selectedTrackIds = [pasted.id];
-            } else {
+            } else if (state.clipboardTrack.kind === 'text') {
               const pasted = cloneTextTrack(state.clipboardTrack, { offset: targetOffset });
               state.textTracks.push(pasted);
+              state.selectedTrackIds = [pasted.id];
+            } else {
+              const pasted = cloneMidiTrack(state.clipboardTrack, { offset: targetOffset });
+              state.midiTracks.push(pasted);
               state.selectedTrackIds = [pasted.id];
             }
             state.timeline.duration = recalculateTimelineDuration(state);
@@ -1138,6 +1541,19 @@ export const useEditorStore = create<EditorState>()(
           set((state) => {
             state.selectedRegion = { start: state.selectedRegion?.start ?? 0, end: time };
           });
+        },
+
+        openPianoRoll: (trackId: string) => {
+          set((state) => {
+            if (state.midiTracks.some((t) => t.id === trackId)) {
+              state.pianoRollTrackId = trackId;
+              state.selectedTrackIds = [trackId];
+            }
+          });
+        },
+
+        closePianoRoll: () => {
+          set((state) => { state.pianoRollTrackId = null; });
         },
 
         // ── processingSlice actions ─────────────────────────────────────────
@@ -1557,6 +1973,7 @@ export const useEditorStore = create<EditorState>()(
             videoTracks: state.videoTracks,
             audioTracks: state.audioTracks,
             textTracks: state.textTracks,
+            midiTracks: state.midiTracks,
             timelineMarkers: state.timelineMarkers,
             timeline: state.timeline,
             musical: state.musical,
@@ -1583,12 +2000,14 @@ export const useEditorStore = create<EditorState>()(
             state.videoTracks = result.videoTracks;
             state.audioTracks = audioTracks;
             state.textTracks = result.textTracks;
+            state.midiTracks = result.midiTracks ?? [];
             state.timelineMarkers = result.timelineMarkers;
             state.timeline = result.timeline;
             state.musical = result.musical;
             state.currentProjectId = projectId;
             state.selectedTrackIds = [];
           });
+          midiPlaybackEngine.preload((result.midiTracks ?? []).map((t) => t.instrumentId)).catch(() => {});
         },
 
         clearLastError: () => {
@@ -1793,4 +2212,15 @@ export const useEditorStore = create<EditorState>()(
 // Dev-only handle for driving the editor from the console / automated tests.
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   (window as unknown as Record<string, unknown>).__editorStore = useEditorStore;
+  // Render a MIDI track to a WAV blob — the audio path used by export.
+  (window as unknown as Record<string, unknown>).__renderMidi = async (trackId: string) => {
+    const st = useEditorStore.getState();
+    const t = st.midiTracks.find((m) => m.id === trackId);
+    if (!t) return null;
+    const { renderMidiTrackToBlob } = await import('@/lib/midi/renderMidi');
+    return renderMidiTrackToBlob(
+      { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume },
+      st.musical.bpm
+    );
+  };
 }

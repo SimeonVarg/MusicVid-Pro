@@ -4,11 +4,19 @@
 > This file is the stable "what it is / why it's built this way" reference.
 
 ## What it is
-A **serverless, browser-based music video editor**. Import video + audio, arrange
-a multi-track timeline, trim, color-grade, add titles and a metronome overlay,
-then export a finished MP4 — and **every byte of encoding happens client-side**.
-Nothing is uploaded; there is no server. It's the flagship YC Startup School demo:
-"I make a music video of myself in 60 seconds, and it never leaves my laptop."
+A **serverless, browser-based music video editor** — with a **lightweight DAW**
+built in. Import video + audio, arrange a multi-track timeline, trim, color-grade,
+add titles and a metronome overlay, **write MIDI instrument tracks in a piano roll
+(played with real instrument samples)**, then export a finished MP4 — and **every
+byte of encoding happens client-side**. Nothing is uploaded; there is no server.
+It's the flagship YC Startup School demo: "I make a music video of myself in 60
+seconds, and it never leaves my laptop."
+
+The MIDI/DAW layer (branch `feature/midi-daw`) adds a 4th track type: add an
+instrument track, edit notes (length/pitch/velocity/transpose/quantize) in a
+piano roll, hear real vendored samples (piano, bass, guitar, strings, sax,
+xylophone, drum kits), import `.mid` files, and render it all into the export.
+See `STATUS.md` Round 5 for the full breakdown and the Tone.js loading gotcha.
 
 **Stack:** React 18 + TypeScript (Next.js), **Zustand** for the editor store,
 **FFmpeg WebAssembly** for all encoding/pitch-shifting, **Web Workers** for

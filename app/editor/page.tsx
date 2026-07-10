@@ -7,7 +7,10 @@ import { VideoPreview } from '@/components/editor/VideoPreview';
 import { TrackList } from '@/components/editor/TrackList';
 import { InspectorPanel } from '@/components/editor/InspectorPanel';
 import { ExportModal } from '@/components/editor/ExportModal';
+import { PianoRollEditor } from '@/components/editor/PianoRollEditor';
+import { MixerPanel } from '@/components/editor/MixerPanel';
 import { TutorialOverlay } from '@/components/editor/TutorialOverlay';
+import { isMidiFile } from '@/lib/midi/midiImport';
 import { EditorErrorBoundary } from '@/components/editor/EditorErrorBoundary';
 import { ErrorToast } from '@/components/ui/ErrorToast';
 import { Progress } from '@/components/ui/Progress';
@@ -74,15 +77,17 @@ export default function EditorPage() {
     setIsDragOver(false);
     const files = [...e.dataTransfer.files];
     if (files.length === 0) return;
-    const { addVideoTrack, addAudioTrack } = useEditorStore.getState();
+    const { addVideoTrack, addAudioTrack, importMidiFile } = useEditorStore.getState();
     for (const file of files) {
-      if (file.type.startsWith('video/')) {
+      if (isMidiFile(file)) {
+        await importMidiFile(file);
+      } else if (file.type.startsWith('video/')) {
         await addVideoTrack(file);
       } else if (file.type.startsWith('audio/')) {
         await addAudioTrack(file);
       } else {
         useEditorStore.setState({
-          lastError: `"${file.name}" isn't a video or audio file — try MP4, MOV, MP3, or WAV.`,
+          lastError: `"${file.name}" isn't a supported file — try MP4, MOV, MP3, WAV, or MID.`,
         });
       }
     }
@@ -273,6 +278,8 @@ export default function EditorPage() {
         )}
 
         <ExportModal />
+        <PianoRollEditor />
+        <MixerPanel />
         <ErrorToast />
         <TutorialOverlay />
       </div>

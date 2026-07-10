@@ -20,6 +20,7 @@
     "@radix-ui/react-radio-group": "^1.1.3",
     "@radix-ui/react-separator": "^1.0.3",
     "@radix-ui/react-slider": "^1.1.2",
+    "@tonejs/midi": "^2.0.28",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "dexie": "^3.2.4",

@@ -1,3 +1,186 @@
+# MusicVid Pro — Status (July 7, 2026: MIDI / DAW instrument tracks)
+
+## Round 5 (July 7): MIDI instrument tracks + piano roll (branch `feature/midi-daw`)
+
+MusicVid Pro is now also a lightweight DAW: you can add **instrument (MIDI)
+tracks**, write/edit notes in a piano roll, hear them with **real instrument
+samples**, and they render into the video export.
+
+- **Scope check (told the owner up front):** MIDI is cheap — notes are bytes,
+  synthesis is faster-than-realtime. The only heavy part is the piano-roll UI.
+  Fully in scope; no computational concern.
+- **Real samples, not synths** (owner's explicit ask — Opus's MusicTools synths
+  sounded fake). Vendored 108 real recordings in `public/samples` (~16.5 MB):
+  Salamander grand piano (CC-BY), VSCO2 bass/guitar/violin/sax/xylophone,
+  Tone.js drum kits (acoustic + CR-78). Three synths exist but are explicitly
+  labelled "Synth" extras. Attribution in `public/samples/ATTRIBUTION.md`.
+- **New `midi` track type** (a 4th clip kind) threaded through the whole store:
+  add/import/notes/instrument/transpose/quantize/velocity actions, undo/redo,
+  timeline-duration math (BPM-relative — clip length rescales with project BPM),
+  copy/paste/duplicate, save/load (plain JSON, no blobs). `lib/midi/*`:
+  noteUtils (pure, tested), instruments catalog, midiImport (@tonejs/midi),
+  toneInstruments (sampler/drums/synth voices), playbackEngine (realtime),
+  renderMidi (offline → WAV), wav encoder.
+- **Piano roll** (`components/editor/PianoRollEditor.tsx`): click-to-add, drag to
+  move, drag right edge to resize, Delete to remove, a **velocity lane**,
+  instrument picker, snap grid (1/4…1/16 + triplets), quantize, transpose,
+  zoom, real-sample audition on interaction. Opens via the timeline (double-click
+  a MIDI clip), the toolbar Piano button, or the Inspector "Edit notes" button.
+  UI (owner feedback, July 7): a **windowed panel** (not fullscreen, dimmed
+  editor behind), a full **vertical piano keyboard** with **every** key labelled
+  (white/black keys), note names shown inside each note block, and a green
+  **playhead** with a numbered ruler you can click to seek. Velocity is a
+  per-note **popover** anchored above the selected note (slider + Softer/Louder),
+  not a persistent bottom lane. Verified in-browser: playhead tracks currentTime,
+  ruler-click seeks to the right second, velocity slider writes 40/127 → 0.315.
+- **Timeline**: MIDI clips render violet with a live note-preview; **Inspector**
+  gains a full MIDI section. **Import**: drop a `.mid` file to get instrument
+  tracks (tempo adopted from the file).
+- **Export**: each MIDI track is offline-rendered to a WAV and fed to ffmpeg as
+  an ordinary audio input (placed at its offset by the compositor's adelay).
+  Audio-only export doesn't include MIDI yet (video export does) — flagged in the
+  dialog.
+
+### Piano-roll DAW polish (July 7, owner feedback)
+- **Drag-to-select marquee**: dragging on empty grid draws a selection rectangle
+  and selects the notes inside; a plain click still adds a single note. No more
+  notes placed on every drag.
+- **Loop**: `timeline.loop` is now honored by the transport (rAF tick wraps at
+  `loop.end` → `loop.start` and reschedules MIDI) via a new `setLoop` action; a
+  Loop toggle in the piano-roll header loops the clip.
+
+### Round 6 (July 8, owner feedback round 2) — verified in-browser
+- **Backspace *actually* fixed this time.** The real cause was NOT browser
+  back-nav (Chrome removed that years ago) and NOT the piano-roll guard. It was a
+  *competing* global `window` listener in `lib/hooks/useKeyboardShortcuts.ts`
+  whose Backspace branch deletes the selected track — and the open MIDI track is
+  the selected track, so deleting it made `track` null and unmounted the whole
+  modal ("exited the menu"). The piano roll's `stopPropagation()` never helped,
+  because that does not stop *sibling* listeners on the same target (window). Fix:
+  the global shortcut handler now **bails while a modal is open**
+  (`if (pianoRollTrackId || exportDialogOpen) return;`). This also killed a latent
+  Space double-toggle. Verified: real Backspace keydown on window → note deleted,
+  modal still open, header still "Piano Roll", track still exists.
+- **Multi-select now operates on the whole selection.** Marquee-selecting several
+  notes and then dragging one moved only the grabbed note (and right-click only
+  affected one). `DragState` now carries the full id set + per-note original
+  snapshot; move/resize apply an anchor-snapped delta to every selected note so
+  relative timing/pitch stays locked. The note context menu (velocity, transpose,
+  set-length, duplicate, delete) acts on the whole selection and no longer
+  collapses it. Verified: 3 notes marquee-selected → dragging one shifted all 3 by
+  +1 beat, all stayed selected; right-click showed "Duplicate 3" / "Delete 3
+  notes" with the selection intact.
+- **Loop in the main editor**: a Loop toggle in the Toolbar playback group loops
+  the selected in/out region (I/O) if set, else the whole timeline; reuses the
+  same `setLoop` + transport path. Verified toggling on/off in-browser.
+- **Known dev-only issue (flagged, not fixed):** opening the piano roll logs a
+  React "setState during render" warning (TimeDisplay/PianoRollEditor). It's
+  dev-only (stripped from production builds), pre-existing, and does not affect
+  behavior. Tracked as a follow-up.
+
+### Round 6 — Deliverable 1: Advanced-audio gating + click track (July 8)
+Scope correction from the owner: MusicVid Pro is **mainly a video editor**; a
+first-time non-DAW user seeing every DAW control gets overwhelmed and leaves. So
+the DAW depth now hides behind an **Advanced audio** toggle (progressive
+disclosure) and the default view stays a clean video editor.
+- **Advanced-audio toggle** (`advancedAudio` in uiSlice, off by default). A
+  SlidersHorizontal button in the toolbar reveals/hides the DAW controls: the
+  Add-instrument (MIDI) button, the metronome, and the main-editor Loop button.
+  Verified: default view hides all three; toggling on reveals them.
+- **Audible metronome / click track** (`lib/audio/metronome.ts`). Previously the
+  metronome was visual-only. Now it plays a real woodblock-ish click on every beat
+  during playback (accent on the downbeat), using the shared AudioContext and a
+  lookahead scheduler (the Web Audio "two clocks" pattern) so clicks stay on-beat
+  regardless of rAF jitter. A synthesized click is the one correct place for a
+  tone — a metronome is a click, not an instrument — so this does NOT break the
+  "real samples, not synths" doctrine. Verified in-browser: click oscillators are
+  scheduled continuously while playing (0 → 37 over the play span) and stop on
+  pause.
+- **Count-in** (`musical.countInBars`, Off/1/2 bars). When the metronome is on,
+  Play first plays N bars of clicks, then starts the transport at the playhead.
+  Verified: with 1 bar set, Play holds `isPlaying=false` through the count-in,
+  then flips true and playback + click continue.
+- **Click volume** slider (`musical.metronomeVolume`). Both count-in and click
+  live in the toolbar Settings → "Advanced audio" section (only shown when
+  advanced audio is on). The metronome/loop restart correctly on loop-wrap.
+- Full suite 256/256; production build clean (`/editor` 171 kB).
+
+### Round 6 — Deliverable 2: Mixer (per-track volume / pan / mute / solo, July 9)
+Volume + mute already existed on tracks; **pan** and **solo** are new fields
+(`pan?: number`, `isSoloed?: boolean` — optional so old saved projects still load).
+Behind the same Advanced-audio toggle, next to the metronome button.
+- **MixerPanel** (`components/editor/MixerPanel.tsx`): a Radix `Dialog` with one
+  channel strip per audio-bearing track (video/audio/MIDI — text tracks are silent
+  and excluded), each with a volume slider, pan slider (L/C/R label), Mute, Solo.
+  Solo is global: soloing any one track silences every other non-soloed track.
+- **MIDI engine** (`lib/midi/playbackEngine.ts`): every track with notes now gets
+  a `Tone.Gain → Tone.Panner → destination` chain keyed by track id (even
+  muted/soloed-out ones, held at gain 0), so the mixer's `setTrackVolume`/
+  `setTrackPan`/`setTrackMuted`/`toggleTrackSolo` push straight to the live Tone
+  nodes — no playback restart needed. Previously gain nodes weren't keyed at all
+  (couldn't be adjusted after scheduling).
+- **Video/audio pan** (`lib/audio/mediaPan.ts`): HTMLMediaElements have no native
+  pan, so a panned element is routed once through
+  `MediaElementSource → StereoPanner → destination`; un-panned elements stay on
+  the direct `<video>`/`<audio>` path (unchanged behavior, no perf cost for the
+  common case).
+- Same modal-shortcut-guard lesson as the piano roll applies here: `mixerOpen`
+  was added to `useKeyboardShortcuts`'s bail condition. Verified in-browser:
+  Backspace while the mixer is open does **not** delete the selected MIDI track
+  (this was the exact failure mode fixed for the piano roll earlier — same root
+  cause, same fix, applied proactively this time).
+- Persistence needed no changes — `db.ts`/`projectStore.ts` serialize tracks via
+  `{...t}` spreads, not field allowlists, so `pan`/`isSoloed` flow through for
+  free.
+- Verified in-browser end-to-end: opened mixer, moved a channel's volume slider
+  to 60% and pan to L45 (both updated live via the store, confirmed by re-reading
+  the rendered label text, not just assuming the event fired), toggled Mute →
+  "Unmute" (dialog stayed open), toggled Solo → amber-highlighted (dialog stayed
+  open), Backspace while open left the track intact, closed cleanly. No console
+  errors. Full suite 256/256; production build clean (`/editor` 172 kB).
+
+### Reusable right-click context menus (July 7, owner ask: "throughout the app")
+Before this there was ONE ad-hoc menu (timeline clips, hand-positioned in
+Timeline.tsx). Replaced with a reusable `components/ui/ContextMenu.tsx`
+(`useContextMenu()` hook + controlled `<ContextMenu>`): portals to body, flips at
+viewport edges, dismisses on outside-click/Escape/scroll/resize, supports
+separators, section labels, disabled + danger items, submenus, keepOpen toggles,
+and fully custom rows (the velocity slider). Wired per surface with relevant
+options:
+- **Piano-roll note**: velocity slider + pp/p/mf/f/ff presets, Transpose
+  submenu (±oct, ±semi), Set-length submenu, Duplicate, Delete. This REPLACES the
+  old click-triggered velocity popover — velocity is now right-click only, fixing
+  "any click shows the velocity popup" (left-click on empty grid just adds a note,
+  no popup). Right-click empty grid → Add note / Select all / Quantize all / Clear.
+- **Timeline clip** (video/audio/text/midi): Copy/Paste(disabled w/o clipboard)/
+  Duplicate/Split(disabled for midi + off-clip)/Split-audio(video)/Edit-notes
+  (midi)/Mute/Lock/Delete. Timeline background (Konva stage): Add instrument|text
+  track, Paste here, Add marker here.
+- **TrackList row**: Copy/Paste/Duplicate/Split or Edit-notes/Mute/Lock/Delete —
+  and MIDI tracks now appear in the TrackList (were timeline-only before).
+- **Video preview**: Take snapshot / Toggle guides / Detach.
+Verified in-browser: piano-roll note + empty menus and actions, TrackList row
+menu, timeline clip menu (disable logic correct), video-preview menu — all render
+and act correctly, no console errors. NOT browser-verified: the timeline
+*background* (Konva-stage) menu — the Konva Stage won't mount in the 0×0 headless
+preview viewport, so it needs a real-browser check; wiring is in place.
+
+### ⚠️ Tone.js loading gotcha (cost real time — don't relearn)
+Tone's npm **ESM build has extensionless internal imports** webpack can't resolve
+for named exports — `Tone.start/now/Gain/Offline` silently come back `undefined`
+(audio looks like it runs but is dead). Fix: **vendored Tone's UMD build in
+`public/vendor/tone/Tone.js`** and load it at runtime via a `<script>` tag
+(`lib/midi/tone.ts` → `ensureTone()`/`tone()`), same doctrine as the vendored
+ffmpeg wasm. Types come from an erased `import type`, so there's no runtime `tone`
+import anywhere (keeps SSR + vitest clean). Verified in-browser: offline render
+produces real audio (peak ~0.40, not silence); realtime playback loads Tone and
+schedules voices; 256/256 tests; clean production build.
+
+Verify tip: `window.__renderMidi(trackId)` (dev-only) returns the rendered WAV
+blob for a MIDI track — decode it and check peak amplitude > 0 to prove real audio.
+
+---
+
 # MusicVid Pro — Status (July 5, 2026: hardening + design + features)
 
 ## Round 4 (July 6): titles that actually export + project manager

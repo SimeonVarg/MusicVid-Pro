@@ -21,6 +21,8 @@ export interface TimelineSliceState {
     key: string;
     showMetronome: boolean;
     metronomeVolume: number;
+    /** Bars of audible count-in clicks before playback starts (0 = off). */
+    countInBars: number;
   };
   timeDisplayMode: 'seconds' | 'musical' | 'ms' | 'beat' | 'frame';
   timeUnits: 'ms' | 'beat' | 'frame';
@@ -38,9 +40,12 @@ export interface TimelineSliceActions {
   toggleTimeDisplayMode: () => void;
   setTimeUnits: (units: 'ms' | 'beat' | 'frame') => void;
   setMetronomeVisibility: (visible: boolean) => void;
+  setMetronomeVolume: (volume: number) => void;
+  setCountInBars: (bars: number) => void;
   setZoom: (zoom: number, anchorX?: number) => void;
   setScrollX: (scrollX: number) => void;
   setSnapToGrid: (snap: boolean) => void;
+  setLoop: (loop: { start: number; end: number } | null) => void;
 }
 
 export const timelineInitialState: TimelineSliceState = {
@@ -63,6 +68,7 @@ export const timelineInitialState: TimelineSliceState = {
     // and surprises first-time users. Toggle with M.
     showMetronome: false,
     metronomeVolume: 0.5,
+    countInBars: 0,
   },
   timeDisplayMode: 'seconds',
   timeUnits: 'ms',

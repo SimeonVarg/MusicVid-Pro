@@ -9,6 +9,8 @@ import { TimelineTrack } from './TimelineTrack';
 import { TimelineRuler } from './TimelineRuler';
 import { Playhead } from './Playhead';
 import { getTimelineGridConfig } from '@/lib/utils/musicalTime';
+import { ContextMenu, useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
+import { Copy, ClipboardPaste, CopyPlus, Scissors, Volume2, VolumeX, Lock, Unlock, Trash2, Music, Plus, Type, MapPin, AudioLines } from 'lucide-react';
 
 export function Timeline() {
   const stageRef = useRef<any>(null);
@@ -21,6 +23,7 @@ export function Timeline() {
     videoTracks,
     audioTracks,
     textTracks,
+    midiTracks,
     timelineMarkers,
     timeline,
     musical,
@@ -32,6 +35,12 @@ export function Timeline() {
     duplicateTrack,
     splitTrack,
     splitAudioFromVideo,
+    removeTrack,
+    updateTrack,
+    openPianoRoll,
+    addMidiTrack,
+    addTextTrack,
+    clipboardTrack,
     setCurrentTime,
     addTimelineMarker,
     setSelectedTrackIds,
@@ -39,16 +48,17 @@ export function Timeline() {
     setScrollX,
   } = useEditorStore();
 
+  const bgMenu = useContextMenu();
+
   const [trackHeightScale, setTrackHeightScale] = useState(1.0);
   const TRACK_HEIGHT = Math.round(80 * trackHeightScale);
   const RULER_HEIGHT = 40;
   const H_SCROLLBAR_HEIGHT = 40;
   const V_SCROLLBAR_WIDTH = 14;
   const PIXELS_PER_SECOND = 100 * timeline.zoom;
-  const MENU_WIDTH = 176;
-  const MENU_ITEM_HEIGHT = 36;
   const allTracks = [
     ...audioTracks.map((t) => ({ ...t, type: 'audio' as const })),
+    ...midiTracks.map((t) => ({ ...t, type: 'midi' as const })),
     ...videoTracks.map((t) => ({ ...t, type: 'video' as const })),
     ...textTracks.map((t) => ({ ...t, type: 'text' as const })),
   ];
@@ -233,16 +243,43 @@ export function Timeline() {
     ? allTracks.find((track) => track.id === trackContextMenu.trackId)
     : null;
 
-  const menuHeight = (contextTrack?.type === 'video' ? 5 : 4) * MENU_ITEM_HEIGHT + 8;
-  const menuPosition = trackContextMenu
-    ? {
-        left: Math.max(8, Math.min(trackContextMenu.x, window.innerWidth - MENU_WIDTH - 8)),
-        top:
-          trackContextMenu.y + menuHeight > window.innerHeight - 8
-            ? Math.max(8, trackContextMenu.y - menuHeight)
-            : Math.max(8, trackContextMenu.y),
-      }
-    : { left: 8, top: 8 };
+  const buildClipMenu = (t: NonNullable<typeof contextTrack>): MenuItem[] => {
+    const visible = t.trimEnd - t.trimStart;
+    const playheadInside = timeline.currentTime > t.offset + 0.001 && timeline.currentTime < t.offset + visible - 0.001;
+    const isVideo = t.type === 'video';
+    const isMidi = t.type === 'midi';
+    return [
+      { label: 'Copy', icon: Copy, shortcut: '⌘C', onSelect: () => copyTrack(t.id) },
+      { label: 'Paste', icon: ClipboardPaste, shortcut: '⌘V', disabled: !clipboardTrack, onSelect: () => pasteTrack(t.id, timeline.currentTime) },
+      { label: 'Duplicate', icon: CopyPlus, shortcut: '⌘D', onSelect: () => duplicateTrack(t.id) },
+      { type: 'separator' },
+      { label: 'Split at playhead', icon: Scissors, shortcut: 'S', disabled: isMidi || !playheadInside, onSelect: () => splitTrack(t.id, timeline.currentTime) },
+      ...(isVideo ? [{ label: 'Split audio from video', icon: AudioLines, disabled: !('file' in t && t.file) || !!('linkedAudioTrackId' in t && t.linkedAudioTrackId), onSelect: () => { void splitAudioFromVideo(t.id); } } as MenuItem] : []),
+      ...(isMidi ? [{ label: 'Edit notes (Piano Roll)', icon: Music, onSelect: () => openPianoRoll(t.id) } as MenuItem] : []),
+      { type: 'separator' },
+      { label: t.isMuted ? 'Unmute' : 'Mute', icon: t.isMuted ? VolumeX : Volume2, keepOpen: true, onSelect: () => updateTrack(t.id, { isMuted: !t.isMuted }) },
+      { label: t.isLocked ? 'Unlock' : 'Lock', icon: t.isLocked ? Unlock : Lock, keepOpen: true, onSelect: () => updateTrack(t.id, { isLocked: !t.isLocked }) },
+      { type: 'separator' },
+      { label: 'Delete track', icon: Trash2, danger: true, onSelect: () => removeTrack(t.id) },
+    ];
+  };
+
+  const buildBgMenu = (time: number): MenuItem[] => [
+    { type: 'label', label: 'Add track' },
+    { label: 'Instrument (MIDI)', icon: Music, onSelect: () => { const id = addMidiTrack(); openPianoRoll(id); } },
+    { label: 'Text clip', icon: Type, onSelect: () => addTextTrack('New text') },
+    { type: 'separator' },
+    { label: 'Paste here', icon: ClipboardPaste, disabled: !clipboardTrack, onSelect: () => pasteTrack('', Math.max(0, time)) },
+    { label: 'Add marker here', icon: MapPin, onSelect: () => addTimelineMarker(Math.max(0, time)) },
+  ];
+
+  const handleStageContextMenu = (e: any) => {
+    e.evt.preventDefault();
+    // Clip right-clicks cancel bubbling in TimelineTrack, so reaching here means
+    // the background/ruler was clicked.
+    const time = getTimeFromPointer(e.target.getStage()) ?? 0;
+    bgMenu.open({ clientX: e.evt.clientX, clientY: e.evt.clientY }, buildBgMenu(time));
+  };
 
   useEffect(() => {
     if (!timeline.isPlaying || dimensions.width <= 0) {
@@ -295,6 +332,7 @@ export function Timeline() {
         onMouseUp={stopScrubbing}
         onMouseLeave={stopScrubbing}
         onWheel={handleWheel}
+        onContextMenu={handleStageContextMenu}
       >
         <Layer>
           {/* Background */}
@@ -421,67 +459,17 @@ export function Timeline() {
         </div>
       )}
 
-      {trackContextMenu && (
-        <div
-          className="fixed inset-0 z-50"
-          onMouseDown={closeTrackContextMenu}
-          onContextMenu={(event) => event.preventDefault()}
-        >
-          <div
-            className="absolute w-44 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
-            style={menuPosition}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button
-              className="flex w-full items-center px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-              onClick={() => {
-                copyTrack(trackContextMenu.trackId);
-                closeTrackContextMenu();
-              }}
-            >
-              Copy
-            </button>
-            <button
-              className="flex w-full items-center px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-              onClick={() => {
-                pasteTrack(trackContextMenu.trackId, timeline.currentTime);
-                closeTrackContextMenu();
-              }}
-            >
-              Paste
-            </button>
-            <button
-              className="flex w-full items-center px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-              onClick={() => {
-                duplicateTrack(trackContextMenu.trackId);
-                closeTrackContextMenu();
-              }}
-            >
-              Duplicate
-            </button>
-            <button
-              className="flex w-full items-center px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-              onClick={() => {
-                splitTrack(trackContextMenu.trackId, timeline.currentTime);
-                closeTrackContextMenu();
-              }}
-            >
-              Split
-            </button>
-            {contextTrack?.type === 'video' && (
-              <button
-                className="flex w-full items-center px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-                onClick={async () => {
-                  await splitAudioFromVideo(trackContextMenu.trackId);
-                  closeTrackContextMenu();
-                }}
-              >
-                Split Audio from Video
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Clip context menu (store-driven trigger from TimelineTrack) */}
+      <ContextMenu
+        open={!!trackContextMenu && !!contextTrack}
+        x={trackContextMenu?.x ?? 0}
+        y={trackContextMenu?.y ?? 0}
+        items={contextTrack ? buildClipMenu(contextTrack) : []}
+        onClose={closeTrackContextMenu}
+      />
+
+      {/* Empty timeline / ruler background context menu */}
+      {bgMenu.node}
 
       {/* Zoom Controls */}
       <div className="absolute bottom-10 right-4 flex items-center gap-3 bg-zinc-800 rounded-lg px-3 py-2">

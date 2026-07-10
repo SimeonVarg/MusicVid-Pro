@@ -24,6 +24,9 @@ export function useKeyboardShortcuts() {
     setSelectedRegionStart,
     setSelectedRegionEnd,
     saveProject,
+    pianoRollTrackId,
+    exportDialogOpen,
+    mixerOpen,
   } = useEditorStore();
 
   useEffect(() => {
@@ -32,6 +35,16 @@ export function useKeyboardShortcuts() {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
       ) {
+        return;
+      }
+
+      // A modal overlay owns the keyboard while open. These global shortcuts live
+      // on `window`, and stopPropagation() from the modal's own listener does NOT
+      // stop sibling listeners on the same target — so the ONLY reliable guard is
+      // for the global handler itself to bail. Without this, Backspace in the piano
+      // roll deletes the selected note AND removes the underlying track here, which
+      // unmounts the piano roll ("exiting the midi menu"), and Space double-toggles.
+      if (pianoRollTrackId || exportDialogOpen || mixerOpen) {
         return;
       }
 
@@ -173,5 +186,8 @@ export function useKeyboardShortcuts() {
     setSelectedRegionStart,
     setSelectedRegionEnd,
     saveProject,
+    pianoRollTrackId,
+    exportDialogOpen,
+    mixerOpen,
   ]);
 }

@@ -19,6 +19,10 @@ import {
   Keyboard,
   Grid3x3,
   FolderOpen,
+  Piano,
+  Repeat,
+  SlidersHorizontal,
+  Sliders,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Separator } from '@/components/ui/Separator';
@@ -49,6 +53,16 @@ export function Toolbar() {
     setZoom,
     setScrollX,
     saveProject,
+    addMidiTrack,
+    openPianoRoll,
+    setLoop,
+    selectedRegion,
+    advancedAudio,
+    setAdvancedAudio,
+    setMetronomeVolume,
+    setCountInBars,
+    mixerOpen,
+    setMixerOpen,
   } = useEditorStore();
 
   useEffect(() => {
@@ -129,6 +143,30 @@ export function Toolbar() {
             >
               <SkipForward className="h-3.5 w-3.5" />
             </Button>
+
+            {advancedAudio && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 ${timeline.loop ? 'text-signal-400' : ''}`}
+                title={
+                  timeline.loop
+                    ? 'Looping — click to turn off'
+                    : selectedRegion && selectedRegion.end > selectedRegion.start
+                      ? 'Loop the selected region (I/O)'
+                      : 'Loop playback (whole timeline)'
+                }
+                onClick={() => {
+                  if (timeline.loop) { setLoop(null); return; }
+                  const region = selectedRegion && selectedRegion.end > selectedRegion.start ? selectedRegion : null;
+                  const start = region ? region.start : 0;
+                  const end = region ? region.end : timeline.duration;
+                  if (end > start) setLoop({ start, end });
+                }}
+              >
+                <Repeat className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
 
           <Separator orientation="vertical" className="h-7" />
@@ -161,15 +199,53 @@ export function Toolbar() {
               <Scissors className="h-3.5 w-3.5" />
             </Button>
 
+            {advancedAudio && (
+              <>
+                <Button
+                  data-tutorial="toolbar-instrument"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Add instrument (MIDI) track"
+                  onClick={() => { const id = addMidiTrack(); openPianoRoll(id); }}
+                >
+                  <Piano className="h-3.5 w-3.5" />
+                </Button>
+
+                <Button
+                  data-tutorial="toolbar-metronome"
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${musical.showMetronome ? 'text-signal-400' : ''}`}
+                  title={musical.showMetronome ? 'Metronome on (audible click) — click to mute' : 'Metronome (audible click while playing)'}
+                  onClick={() => setMetronomeVisibility(!musical.showMetronome)}
+                >
+                  <Timer className="h-3.5 w-3.5" />
+                </Button>
+
+                <Button
+                  data-tutorial="toolbar-mixer"
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${mixerOpen ? 'text-signal-400' : ''}`}
+                  title="Mixer — per-track volume, pan, mute, solo"
+                  onClick={() => setMixerOpen(!mixerOpen)}
+                >
+                  <Sliders className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+
+            {/* Advanced-audio (DAW) toggle — the progressive-disclosure switch.
+                Off by default so first-time users see a clean video editor. */}
             <Button
-              data-tutorial="toolbar-metronome"
               variant="ghost"
               size="icon"
-              className={`h-8 w-8 ${musical.showMetronome ? 'text-signal-400' : ''}`}
-              title={musical.showMetronome ? 'Hide Metronome (M)' : 'Show Metronome (M)'}
-              onClick={() => setMetronomeVisibility(!musical.showMetronome)}
+              className={`h-8 w-8 ${advancedAudio ? 'text-signal-400' : ''}`}
+              title={advancedAudio ? 'Hide advanced audio (DAW) controls' : 'Show advanced audio (DAW) controls — instruments, metronome, loop, count-in'}
+              onClick={() => setAdvancedAudio(!advancedAudio)}
             >
-              <Timer className="h-3.5 w-3.5" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
             </Button>
 
             {/* Snap indicator */}
@@ -242,6 +318,49 @@ export function Toolbar() {
                     {timeline.snapToGrid ? 'ON' : 'OFF'}
                   </span>
                 </button>
+
+                {advancedAudio && (
+                  <>
+                    <div className="my-1 h-px bg-zinc-800" />
+                    <p className="section-label px-3 py-1.5">Advanced audio</p>
+
+                    {/* Count-in */}
+                    <div className="px-3 py-1.5">
+                      <div className="mb-1.5 text-sm text-zinc-100">Count-in</div>
+                      <div className="flex gap-1">
+                        {[0, 1, 2].map((bars) => (
+                          <button
+                            key={bars}
+                            onClick={() => setCountInBars(bars)}
+                            className={`flex-1 rounded-md border px-2 py-1 text-xs font-medium ${
+                              musical.countInBars === bars
+                                ? 'border-signal-400/60 bg-signal-400/15 text-signal-300'
+                                : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                            }`}
+                          >
+                            {bars === 0 ? 'Off' : `${bars} bar${bars > 1 ? 's' : ''}`}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[10px] leading-tight text-zinc-500">Clicks in before playback (needs metronome on).</p>
+                    </div>
+
+                    {/* Metronome volume */}
+                    <div className="px-3 py-1.5">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-sm text-zinc-100">Click volume</span>
+                        <span className="font-mono text-[11px] text-zinc-400">{Math.round(musical.metronomeVolume * 100)}</span>
+                      </div>
+                      <input
+                        type="range" min={0} max={100} step={1}
+                        value={Math.round(musical.metronomeVolume * 100)}
+                        onChange={(e) => setMetronomeVolume(Number(e.target.value) / 100)}
+                        className="h-2 w-full cursor-pointer accent-signal-400"
+                        aria-label="Metronome click volume"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

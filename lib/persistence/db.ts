@@ -7,7 +7,7 @@
  *   files     — raw File blobs keyed by fileId (from MediaRegistry)
  */
 import Dexie, { type Table } from 'dexie';
-import type { VideoTrack, AudioTrack, TextTrack, TimelineState, MusicalContext } from '@/stores/editorStore';
+import type { VideoTrack, AudioTrack, TextTrack, MidiTrack, TimelineState, MusicalContext } from '@/stores/editorStore';
 
 export interface ProjectRecord {
   id: string;
@@ -21,6 +21,7 @@ export interface TrackRecord {
   videoTracks: SerializableVideoTrack[];
   audioTracks: SerializableAudioTrack[];
   textTracks: TextTrack[];
+  midiTracks?: MidiTrack[];  // optional for backward-compat with pre-MIDI saves
   timelineMarkers: number[];
   timeline: TimelineState;
   musical: MusicalContext;

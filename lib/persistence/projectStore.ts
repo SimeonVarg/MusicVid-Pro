@@ -9,7 +9,7 @@
  */
 import { db, type ProjectRecord, type SerializableVideoTrack, type SerializableAudioTrack } from './db';
 import { mediaRegistry } from '@/lib/media/mediaRegistry';
-import type { VideoTrack, AudioTrack, TextTrack, TimelineState, MusicalContext } from '@/stores/editorStore';
+import type { VideoTrack, AudioTrack, TextTrack, MidiTrack, TimelineState, MusicalContext } from '@/stores/editorStore';
 
 export interface SaveProjectInput {
   id?: string;
@@ -17,6 +17,7 @@ export interface SaveProjectInput {
   videoTracks: VideoTrack[];
   audioTracks: AudioTrack[];
   textTracks: TextTrack[];
+  midiTracks: MidiTrack[];
   timelineMarkers: number[];
   timeline: TimelineState;
   musical: MusicalContext;
@@ -28,6 +29,7 @@ export interface LoadProjectResult {
   videoTracks: VideoTrack[];
   audioTracks: AudioTrack[];
   textTracks: TextTrack[];
+  midiTracks: MidiTrack[];
   timelineMarkers: number[];
   timeline: TimelineState;
   musical: MusicalContext;
@@ -66,6 +68,8 @@ export async function saveProject(input: SaveProjectInput): Promise<string> {
     videoTracks: serializableVideoTracks,
     audioTracks: serializableAudioTracks,
     textTracks: input.textTracks,
+    // MIDI tracks are plain JSON (no File/AudioBuffer) — store as-is.
+    midiTracks: input.midiTracks.map((t) => ({ ...t, notes: t.notes.map((n) => ({ ...n })) })),
     timelineMarkers: input.timelineMarkers,
     timeline: { ...input.timeline, isPlaying: false, currentTime: 0 },
     musical: input.musical,
@@ -150,6 +154,7 @@ export async function loadProject(projectId: string): Promise<LoadProjectResult 
     videoTracks,
     audioTracks,
     textTracks: trackRecord.textTracks,
+    midiTracks: trackRecord.midiTracks ?? [],
     timelineMarkers: trackRecord.timelineMarkers,
     timeline: trackRecord.timeline,
     musical: trackRecord.musical,
