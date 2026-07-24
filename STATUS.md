@@ -1,5 +1,47 @@
 # MusicVid Pro — Status (July 24, 2026: cycle-region loop, mode layout split)
 
+## Round 10 (July 24): loop-icon affordance + toolbar declutter
+
+Owner (3rd loop pass): "it repeatedly pastes the selected notes over the duration
+it was selected for … to the right edge instead of the regular handle theres a
+loop icon there and dragging it right just keeps pasting … Ur current feature
+makes the PLAYBACK repeat — this is okay just name it something else."
+
+Root diagnosis: the repeat-to-fill logic already shipped in Round 9 (`tileLoopedNotes`
++ `resizeTrackEdge` MIDI branch — dragging a MIDI clip's right edge DOES paste the
+pattern to fill). Two things were missing, both addressed here:
+- **Affordance.** The right edge looked like a plain trim handle (↔), so the loop
+  action was invisible. Added (`TimelineTrack.tsx`): a **persistent ↻ loop badge**
+  at each MIDI clip's top-right corner (lights solid-green while looping), and the
+  right-edge grab handle now renders green with a ↻ glyph instead of the trim
+  arrows. Drag = paste repeats (unchanged logic, tested).
+- **Naming.** The playhead-repeat feature is already "Cycle" everywhere user-visible
+  (Round 9) — kept. "Loop" now exclusively = repeat-the-content.
+- Likely real cause of "still can't get it to work": owner was on `npm run start`,
+  which serves the **last build**. New code only appears after `npm run build` (or
+  `npm run dev`). Called out to owner.
+
+Toolbar overflow (`Toolbar.tsx`), owner: "on my laptop i can't see all the buttons."
+The row was ~18 all-`shrink-0` buttons, so Save/Export clipped off narrow screens.
+Decluttered without losing anything: moved **Open project** and **Keyboard
+shortcuts** into the Settings dropdown (removed their inline buttons — both were
+already reachable elsewhere / via `?`); removed the redundant inline Inspector-collapse
+button (it's in Settings); gated the Snap toggle to `xl+` and the Tutorial launcher
+to `lg+`. Essentials (mode, transport, time, BPM, instrument/mixer/metronome, Save,
+Export) stay inline.
+
+Verify: tsc clean (only pre-existing `colorAdjustments.test` error), full suite
+**266/266**. Visual affordance + toolbar fit need an owner eyeball after a rebuild
+(preview pane can't composite Konva here).
+
+Still open from this batch (NOT done — teed up for owner's call):
+1. **Track-header gutter** — instrument row aligned horizontally with each lane
+   (GarageBand). Bigger layout change: needs an HTML header column synced to the
+   Konva canvas's vertical scroll + row height.
+2. **Instrument picker/player** — "fun & interactive … select an instrument, taken
+   to a menu where you play it and record digitally … instruments look real … no AI
+   cliché menus, no badly drawn SVGs." Needs a creative-direction pick before build.
+
 ## Round 8 (July 24 pm): GarageBand-style loop + beats-mode layout
 
 ### Loop, rebuilt to match other DAWs (owner: "still literally cannot get loop to work")

@@ -565,6 +565,38 @@ export function TimelineTrackInner({
           />
         )}
 
+        {/* Persistent loop affordance (MIDI): a badge at the top-right corner that
+            advertises "drag here to loop", and lights up green while looping. */}
+        {isMidi && trimmedWidth > 44 && (() => {
+          const looped = !!(track as MidiTrack).loopLengthBeats;
+          const bx = Math.max(0, trimmedWidth - 21);
+          return (
+            <Group listening={false}>
+              <Rect
+                x={bx}
+                y={3}
+                width={17}
+                height={13}
+                cornerRadius={3}
+                fill={looped ? '#a3d924' : '#0f1904'}
+                opacity={looped ? 0.95 : 0.6}
+                stroke="#a3d924"
+                strokeWidth={looped ? 0 : 1}
+              />
+              <Text
+                x={bx}
+                y={4.5}
+                width={17}
+                text="↻"
+                align="center"
+                fontSize={11}
+                fontStyle="bold"
+                fill={looped ? '#1a2408' : '#a3d924'}
+              />
+            </Group>
+          );
+        })()}
+
         {/* Trim Handles */}
         {showHandles && (
           <>
@@ -603,9 +635,9 @@ export function TimelineTrackInner({
               y={0}
               width={10}
               height={clipHeight}
-              fill={handleFill}
+              fill={isMidi ? '#a3d924' : handleFill}
               opacity={hoveredHandle === 'end' ? 1 : 0.92}
-              stroke={handleStroke}
+              stroke={isMidi ? '#3f5406' : handleStroke}
               strokeWidth={1}
               cornerRadius={[0, 4, 4, 0]}
               shadowColor="#000000"
@@ -641,14 +673,14 @@ export function TimelineTrackInner({
             )}
             {showHandleIcon('end') && (
               <Text
-                x={Math.max(0, trimmedWidth - 8)}
+                x={Math.max(0, trimmedWidth - 9)}
                 y={Math.max(0, clipHeight / 2 - 8)}
-                width={8}
-                text="↔"
+                width={10}
+                text={isMidi ? '↻' : '↔'}
                 align="center"
-                fontSize={12}
+                fontSize={isMidi ? 13 : 12}
                 fontStyle="bold"
-                fill={hoveredHandle === 'end' ? '#84b31a' : '#4b5563'}
+                fill={isMidi ? '#1a2408' : hoveredHandle === 'end' ? '#84b31a' : '#4b5563'}
                 listening={false}
               />
             )}

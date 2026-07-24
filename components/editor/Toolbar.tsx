@@ -13,11 +13,9 @@ import {
   Scissors,
   Music,
   Settings,
-  Maximize2,
   Timer,
   Loader2,
   Save,
-  Keyboard,
   Grid3x3,
   FolderOpen,
   Piano,
@@ -47,7 +45,6 @@ export function Toolbar() {
     splitTrack,
     selectedTrackIds,
     toggleInspectorCollapsed,
-    inspectorCollapsed,
     musical,
     setBPM,
     setMetronomeVisibility,
@@ -283,25 +280,16 @@ export function Toolbar() {
               </>
             )}
 
-            {/* Snap indicator */}
+            {/* Snap indicator — quick toggle, also in Settings. Hidden on tight
+                widths so the essential right-side actions never clip. */}
             <Button
               variant="ghost"
               size="icon"
-              className={`h-8 w-8 ${timeline.snapToGrid ? 'text-amber-400' : ''}`}
+              className={`hidden h-8 w-8 xl:flex ${timeline.snapToGrid ? 'text-amber-400' : ''}`}
               title={timeline.snapToGrid ? 'Snap to Grid: ON' : 'Snap to Grid: OFF'}
               onClick={() => useEditorStore.getState().setSnapToGrid(!timeline.snapToGrid)}
             >
               <Grid3x3 className="h-3.5 w-3.5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title={inspectorCollapsed ? 'Expand Inspector' : 'Collapse Inspector'}
-              onClick={toggleInspectorCollapsed}
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
 
@@ -313,17 +301,7 @@ export function Toolbar() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              title="Keyboard Shortcuts (?)"
-              onClick={() => setShortcutsOpen(true)}
-            >
-              <Keyboard className="h-3.5 w-3.5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="Settings"
+              title="Settings, shortcuts & projects"
               onClick={() => setSettingsOpen((v) => !v)}
             >
               <Settings className="h-3.5 w-3.5" />
@@ -332,6 +310,21 @@ export function Toolbar() {
             {settingsOpen && (
               <div className="absolute right-0 top-11 z-50 w-52 rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
                 <p className="section-label px-3 py-1.5">Settings</p>
+                <button
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                  onClick={() => { setProjectsOpen(true); setSettingsOpen(false); }}
+                >
+                  <span>Open project…</span>
+                  <FolderOpen className="h-4 w-4 text-zinc-400" />
+                </button>
+                <button
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                  onClick={() => { setShortcutsOpen(true); setSettingsOpen(false); }}
+                >
+                  <span>Keyboard shortcuts</span>
+                  <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-400">?</span>
+                </button>
+                <div className="my-1 h-px bg-zinc-800" />
                 <button
                   className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
                   onClick={() => { toggleInspectorCollapsed(); setSettingsOpen(false); }}
@@ -417,17 +410,9 @@ export function Toolbar() {
               </div>
             )}
 
-            <TutorialLauncher />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              title="Open project"
-              onClick={() => setProjectsOpen(true)}
-            >
-              <FolderOpen className="h-4 w-4" />
-            </Button>
+            <div className="hidden lg:block">
+              <TutorialLauncher />
+            </div>
 
             <Button
               data-tutorial="toolbar-save"
