@@ -2,7 +2,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore, showsAudioTools, showsVideoTools, type EditorMode } from '@/stores/editorStore';
+import { AudioContextManager } from '@/lib/audio/audioContextManager';
 import {
   Play,
   Pause,
@@ -21,8 +22,9 @@ import {
   FolderOpen,
   Piano,
   Repeat,
-  SlidersHorizontal,
   Sliders,
+  Film,
+  Blend,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Separator } from '@/components/ui/Separator';
@@ -57,13 +59,24 @@ export function Toolbar() {
     openPianoRoll,
     setLoop,
     selectedRegion,
-    advancedAudio,
-    setAdvancedAudio,
+    mode,
+    setMode,
     setMetronomeVolume,
     setCountInBars,
+    setLatencyCompensation,
     mixerOpen,
     setMixerOpen,
   } = useEditorStore();
+
+  const audioTools = showsAudioTools(mode);
+  const videoTools = showsVideoTools(mode);
+
+  // Re-read the detected output latency whenever the settings menu opens — the
+  // user may have connected Bluetooth headphones since the page loaded.
+  const [detectedLatencyMs, setDetectedLatencyMs] = useState(0);
+  useEffect(() => {
+    if (settingsOpen) setDetectedLatencyMs(Math.round(AudioContextManager.outputLatencySec() * 1000));
+  }, [settingsOpen]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -101,6 +114,37 @@ export function Toolbar() {
               <Music className="h-3.5 w-3.5 text-zinc-950" />
             </div>
             <span className="hidden text-sm font-bold tracking-tight lg:block">MusicVid Pro</span>
+          </div>
+
+          <Separator orientation="vertical" className="h-7" />
+
+          {/* Mode switcher — the primary "what am I making?" control. Each mode
+              hides the tooling the other doesn't need, so the surface stays small. */}
+          <div data-tutorial="toolbar-mode" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-zinc-800 bg-zinc-950/60 p-0.5">
+            {([
+              { id: 'video', label: 'Video', icon: Film, hint: 'Video editor — cut, grade, title. No instruments or mixer.' },
+              { id: 'daw', label: 'Beats', icon: Piano, hint: 'DAW — instruments, piano roll, mixer, click track.' },
+              { id: 'hybrid', label: 'Both', icon: Blend, hint: 'Music video — write the beat and cut the video together.' },
+            ] as { id: EditorMode; label: string; icon: typeof Film; hint: string }[]).map((m) => {
+              const Icon = m.icon;
+              const active = mode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  title={m.hint}
+                  aria-pressed={active}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-signal-400 text-zinc-950'
+                      : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{m.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           <Separator orientation="vertical" className="h-7" />
@@ -144,7 +188,7 @@ export function Toolbar() {
               <SkipForward className="h-3.5 w-3.5" />
             </Button>
 
-            {advancedAudio && (
+            {audioTools && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -160,7 +204,10 @@ export function Toolbar() {
                   if (timeline.loop) { setLoop(null); return; }
                   const region = selectedRegion && selectedRegion.end > selectedRegion.start ? selectedRegion : null;
                   const start = region ? region.start : 0;
-                  const end = region ? region.end : timeline.duration;
+                  // With no region and no content yet (empty project, DAW mode), fall
+                  // back to a 2-bar cycle so the button never silently does nothing.
+                  const twoBars = (musical.timeSignature.numerator * 2 * 60) / musical.bpm;
+                  const end = region ? region.end : (timeline.duration > 0 ? timeline.duration : twoBars);
                   if (end > start) setLoop({ start, end });
                 }}
               >
@@ -199,7 +246,7 @@ export function Toolbar() {
               <Scissors className="h-3.5 w-3.5" />
             </Button>
 
-            {advancedAudio && (
+            {audioTools && (
               <>
                 <Button
                   data-tutorial="toolbar-instrument"
@@ -235,18 +282,6 @@ export function Toolbar() {
                 </Button>
               </>
             )}
-
-            {/* Advanced-audio (DAW) toggle — the progressive-disclosure switch.
-                Off by default so first-time users see a clean video editor. */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`h-8 w-8 ${advancedAudio ? 'text-signal-400' : ''}`}
-              title={advancedAudio ? 'Hide advanced audio (DAW) controls' : 'Show advanced audio (DAW) controls — instruments, metronome, loop, count-in'}
-              onClick={() => setAdvancedAudio(!advancedAudio)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-            </Button>
 
             {/* Snap indicator */}
             <Button
@@ -319,10 +354,10 @@ export function Toolbar() {
                   </span>
                 </button>
 
-                {advancedAudio && (
+                {audioTools && (
                   <>
                     <div className="my-1 h-px bg-zinc-800" />
-                    <p className="section-label px-3 py-1.5">Advanced audio</p>
+                    <p className="section-label px-3 py-1.5">Audio</p>
 
                     {/* Count-in */}
                     <div className="px-3 py-1.5">
@@ -343,6 +378,24 @@ export function Toolbar() {
                         ))}
                       </div>
                       <p className="mt-1 text-[10px] leading-tight text-zinc-500">Clicks in before playback (needs metronome on).</p>
+                    </div>
+
+                    {/* Output-latency compensation (Bluetooth) */}
+                    <div className="px-3 py-1.5">
+                      <button
+                        className="flex w-full items-center justify-between rounded-lg text-left text-sm text-zinc-100"
+                        onClick={() => setLatencyCompensation(!(musical.latencyCompensation ?? true))}
+                      >
+                        <span>Sync to output</span>
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${(musical.latencyCompensation ?? true) ? 'bg-signal-400/20 text-signal-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                          {(musical.latencyCompensation ?? true) ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+                      <p className="mt-1 text-[10px] leading-tight text-zinc-500">
+                        {detectedLatencyMs > 0
+                          ? `Detected ${detectedLatencyMs}ms output delay (Bluetooth/driver). The playhead lags to match what you hear.`
+                          : 'No output delay detected (wired). Matters on Bluetooth headphones.'}
+                      </p>
                     </div>
 
                     {/* Metronome volume */}

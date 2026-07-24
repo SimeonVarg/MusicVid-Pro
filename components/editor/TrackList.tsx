@@ -1,8 +1,8 @@
 // components/editor/TrackList.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEffect, useMemo, useState } from 'react';
+import { useEditorStore, showsAudioTools, showsVideoTools } from '@/stores/editorStore';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
@@ -31,9 +31,13 @@ export function TrackList() {
     duplicateTrack,
     splitTrack,
     openPianoRoll,
+    addMidiTrack,
     clipboardTrack,
     timeline,
+    mode,
   } = useEditorStore();
+  const audioTools = showsAudioTools(mode);
+  const videoTools = showsVideoTools(mode);
   const rowMenu = useContextMenu();
   const [activeMenu, setActiveMenu] = useState<RailMenu>('tracks');
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
@@ -152,10 +156,16 @@ export function TrackList() {
     text: 'Create and manage text clips',
   };
 
+  // Text clips are a video-titling tool — irrelevant in Beats mode.
+  const railMenus = (Object.keys(menuTitles) as RailMenu[]).filter((m) => m !== 'text' || videoTools);
+  useEffect(() => {
+    if (!railMenus.includes(activeMenu)) setActiveMenu('tracks');
+  }, [railMenus, activeMenu]);
+
   return (
     <div data-tutorial="tracklist" className="flex h-full min-w-0 overflow-hidden">
       <div className="flex w-14 shrink-0 flex-col items-stretch gap-2 border-r border-zinc-800 bg-zinc-950/80 p-2">
-        {(Object.keys(menuTitles) as RailMenu[]).map((menu) => (
+        {railMenus.map((menu) => (
           <Button
             key={menu}
             variant={activeMenu === menu ? 'default' : 'ghost'}
@@ -186,14 +196,26 @@ export function TrackList() {
 
         {activeMenu === 'upload' && (
           <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/70 p-3">
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleFileUpload('video')}>
-              <Video className="h-4 w-4" />
-              Add Video
-            </Button>
+            {videoTools && (
+              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleFileUpload('video')}>
+                <Video className="h-4 w-4" />
+                Add Video
+              </Button>
+            )}
             <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleFileUpload('audio')}>
               <Music className="h-4 w-4" />
               Add Audio
             </Button>
+            {audioTools && (
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => { const id = addMidiTrack(); setActiveMenu('tracks'); openPianoRoll(id); }}
+              >
+                <Piano className="h-4 w-4" />
+                Add Instrument
+              </Button>
+            )}
           </div>
         )}
 
@@ -246,7 +268,7 @@ export function TrackList() {
                   const isAudio = track.type === 'audio';
                   const isText = track.type === 'text';
                   const isMidi = track.type === 'midi';
-                  const iconColor = isText ? 'text-pink-400' : isMidi ? 'text-violet-400' : isAudio ? 'text-signal-400' : 'text-cyan-400';
+                  const iconColor = isText ? 'text-pink-400' : isMidi ? 'text-signal-300' : isAudio ? 'text-signal-400' : 'text-cyan-400';
 
                   return (
                     <div

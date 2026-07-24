@@ -28,7 +28,7 @@ interface MixerChannel {
 const TYPE_META = {
   video: { icon: Video, color: 'text-cyan-400', accent: 'accent-cyan-400' },
   audio: { icon: Music, color: 'text-signal-400', accent: 'accent-signal-400' },
-  midi: { icon: Piano, color: 'text-violet-400', accent: 'accent-violet-400' },
+  midi: { icon: Piano, color: 'text-signal-300', accent: 'accent-signal-300' },
 } as const;
 
 function panLabel(pan: number): string {

@@ -377,7 +377,7 @@ export function InspectorPanel() {
                   {'text' in selectedTrack ? (
                     <span className="text-pink-400">T</span>
                   ) : 'notes' in selectedTrack ? (
-                    <Music className="h-5 w-5 text-violet-400" />
+                    <Music className="h-5 w-5 text-signal-300" />
                   ) : 'bpm' in selectedTrack ? (
                     <Music className="h-5 w-5 text-signal-400" />
                   ) : (
@@ -423,7 +423,7 @@ export function InspectorPanel() {
 
                 <Button
                   variant="default"
-                  className="w-full gap-2 bg-violet-500 hover:bg-violet-400"
+                  className="w-full gap-2 bg-signal-400 text-zinc-950 hover:bg-signal-300"
                   onClick={() => openPianoRoll(selectedMidiTrack.id)}
                 >
                   <Music className="h-4 w-4" /> Edit notes (Piano Roll)

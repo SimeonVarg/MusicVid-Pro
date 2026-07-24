@@ -34,6 +34,23 @@ export class AudioContextManager {
   }
 
   /**
+   * Total output latency in seconds — how long after we schedule a sample the
+   * user actually HEARS it. `baseLatency` is the graph/buffer cost; `outputLatency`
+   * is the device pipeline, which is where Bluetooth shows up (wired ≈ 0, BT
+   * headphones ≈ 0.15–0.3s). Returns 0 when the context doesn't exist yet or the
+   * browser doesn't report it, so callers degrade to today's behaviour.
+   */
+  static outputLatencySec(): number {
+    const ctx = AudioContextManager.context;
+    if (!ctx) return 0;
+    const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0;
+    const out = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
+    const total = base + out;
+    // Guard against absurd values from a misreporting driver.
+    return Number.isFinite(total) && total > 0 && total < 1 ? total : 0;
+  }
+
+  /**
    * Close the AudioContext. Should only be called on page unload.
    * After calling this, `get()` will create a new context on the next call.
    */

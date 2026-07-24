@@ -23,6 +23,9 @@ export interface TimelineSliceState {
     metronomeVolume: number;
     /** Bars of audible count-in clicks before playback starts (0 = off). */
     countInBars: number;
+    /** Delay the visual playhead by the measured output latency so what you SEE
+     *  matches what you HEAR (Bluetooth adds ~150-300ms). No-op on wired output. */
+    latencyCompensation: boolean;
   };
   timeDisplayMode: 'seconds' | 'musical' | 'ms' | 'beat' | 'frame';
   timeUnits: 'ms' | 'beat' | 'frame';
@@ -42,6 +45,7 @@ export interface TimelineSliceActions {
   setMetronomeVisibility: (visible: boolean) => void;
   setMetronomeVolume: (volume: number) => void;
   setCountInBars: (bars: number) => void;
+  setLatencyCompensation: (on: boolean) => void;
   setZoom: (zoom: number, anchorX?: number) => void;
   setScrollX: (scrollX: number) => void;
   setSnapToGrid: (snap: boolean) => void;
@@ -69,6 +73,7 @@ export const timelineInitialState: TimelineSliceState = {
     showMetronome: false,
     metronomeVolume: 0.5,
     countInBars: 0,
+    latencyCompensation: true,
   },
   timeDisplayMode: 'seconds',
   timeUnits: 'ms',

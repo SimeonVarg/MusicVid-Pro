@@ -1,3 +1,80 @@
+# MusicVid Pro — Status (July 24, 2026: modes, loop fix, latency sync)
+
+## Round 7 (July 24): three modes, loop fix, purple purge, Bluetooth sync
+
+### Loop was genuinely broken — root cause + fix
+The transport clamped `currentTime` to `timeline.duration` but compared the
+**unclamped** `elapsed` against `loop.end`. The piano-roll Loop button set
+`end` from the padded 8-bar grid (min 16s @120bpm) while an empty MIDI clip's
+`duration` is 2s — so the playhead ran to 2s and **froze there for 14 seconds**
+before jumping back. Reproduced in-browser before fixing (samples every 500ms:
+`0.51, 1.03, 1.55, 2, 2, 2, 2, 2, 2, 2`).
+- Transport now bounds by `loop.end` while looping, by `duration` otherwise.
+  Verified after: `0.5 … 5.69` then wraps to `0.21` and keeps cycling.
+- Piano-roll Loop now loops the **clip's musical extent** (`track.duration`,
+  already bar-rounded by `contentLengthBeats`) instead of the padded grid.
+- Main Loop button no longer silently no-ops on an empty project — falls back
+  to a 2-bar cycle when there's no region and no content.
+- Regression-checked: with no loop, playback still stops exactly at `duration`
+  (5.32 → `isPlaying:false`).
+
+### Modes: Video / Beats / Both (replaces the advanced-audio toggle)
+`advancedAudio: boolean` → `mode: 'video' | 'daw' | 'hybrid'` with two derived
+predicates, `showsAudioTools()` / `showsVideoTools()`, exported from the store.
+The goal is the anti-DaVinci-Resolve: you never see tooling for the job you
+aren't doing. Segmented control sits next to the brand as the primary
+"what am I making?" control. Defaults to `video` (unchanged clean first run).
+- **Video** — no instruments/mixer/metronome/loop; keeps guides, snapshot, text.
+- **Beats** — instruments, piano roll, mixer, click, loop; hides composition
+  guides, snapshot, and the Text rail (video-titling tools).
+- **Both** — everything.
+- Switching to Video closes the mixer/piano roll so a modal can't strand open.
+- TrackList gains "Add Instrument"; "Add Video" hides in Beats mode.
+- Verified per-mode visibility in-browser (offsetParent checks), all 3 modes.
+
+### Purple purge
+The violet (`#8b5cf6` and friends) was **not** part of the design system — it was
+introduced here to distinguish MIDI and it bled across the piano roll, timeline,
+mixer, inspector and track list. MIDI and audio are both *sound*, so MIDI now
+lives in the `signal` family (clip `#84b31a` signal-600 vs audio's `#a3d924`),
+keeping the palette to one accent + cyan video + pink text. Active piano keys use
+dark text on signal per the design-system rule. Verified: no `violet` left in the
+DOM; note fill computes to `rgb(132,179,26)`.
+
+### Bluetooth / output-latency compensation
+Audio we schedule is *heard* one output-latency later — Bluetooth adds ~150–300ms,
+so an uncompensated playhead runs ahead of the sound. `AudioContextManager.
+outputLatencySec()` reads `baseLatency + outputLatency` (0 on wired, so this is a
+no-op there). Scheduling is left alone; the **visual** clock lags by the same
+amount: the transport seeds `playbackStartMs` L ahead and subtracts L when
+reporting, so `currentTime` tracks what you're hearing. Seeks seed the same offset
+so they don't jump backwards. Toggle + live detected-ms readout in Settings.
+- ⚠️ **Not verified against a real Bluetooth device** — this machine reports 0ms
+  (wired), so only the wiring and the no-regression path are proven. Test with
+  BT headphones before demoing it.
+
+### Persisted-state gotcha (bit us here, will bite again)
+zustand `persist` merges stored state **over** initial state, so any new field
+added to a persisted slice is `undefined` for existing users —
+`latencyCompensation` vanished until guarded with `?? true`. Same reason `pan` /
+`isSoloed` are optional with `??` defaults. Add new persisted fields defensively.
+
+### Verification-environment notes (don't misread these as bugs)
+The Browser pane doesn't composite, which means: `requestAnimationFrame` never
+fires (transport appears frozen — shim rAF with `setTimeout` to test playback),
+screenshots time out, and **`getComputedStyle` returns stale values**. The mode
+switcher looked like it had a stuck highlight until `className` inspection showed
+React was updating correctly. Assert on `className`/DOM, not computed style.
+Also: running `npm run build` mid-session overwrites `.next` and makes the dev
+server serve production chunks (dev-only `window.__editorStore` disappears) —
+delete `.next` and restart.
+
+- Full suite 256/256; production build clean (`/editor` 173 kB).
+- ⛔ Still unverified visually (pane won't composite): the actual *look* of the
+  mode switcher and the new green MIDI colours. Worth a 30-second eyeball.
+
+---
+
 # MusicVid Pro — Status (July 7, 2026: MIDI / DAW instrument tracks)
 
 ## Round 5 (July 7): MIDI instrument tracks + piano roll (branch `feature/midi-daw`)

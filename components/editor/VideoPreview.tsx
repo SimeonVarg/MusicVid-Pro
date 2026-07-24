@@ -7,6 +7,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
 import { MetronomeOverlay } from './MetronomeOverlay';
 import { setMediaPan } from '@/lib/audio/mediaPan';
+import { showsVideoTools } from '@/stores/editorStore';
 import { toCssFilter } from '@/lib/video/colorAdjustments';
 import { toTitleCss } from '@/lib/video/titleStyles';
 
@@ -62,10 +63,13 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
     midiTracks,
     timeline,
     musical,
+    mode,
     selectedTrackIds,
     setSelectedTrackIds,
     updateVideoPreviewLayout,
   } = useEditorStore();
+
+  const videoTools = showsVideoTools(mode);
 
   // Any track soloed anywhere → non-soloed tracks are silenced (mixer solo).
   const anySoloed =
@@ -323,15 +327,20 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       }}
       onContextMenu={(e) => {
         const items: MenuItem[] = [
-          { label: 'Take snapshot', icon: Camera, onSelect: handleSnapshot },
-          { label: showGuides ? 'Hide composition guides' : 'Show composition guides', icon: Grid3X3, onSelect: () => setShowGuides((v) => !v) },
+          ...(videoTools
+            ? [
+                { label: 'Take snapshot', icon: Camera, onSelect: handleSnapshot } as MenuItem,
+                { label: showGuides ? 'Hide composition guides' : 'Show composition guides', icon: Grid3X3, onSelect: () => setShowGuides((v) => !v) } as MenuItem,
+              ]
+            : []),
           ...(onDetach && !detached ? [{ type: 'separator' as const }, { label: 'Detach preview', icon: Maximize2, onSelect: onDetach } as MenuItem] : []),
         ];
-        previewMenu.open(e, items);
+        if (items.length > 0) previewMenu.open(e, items);
       }}
     >
-      {/* Preview tools — shown on hover */}
-      <div className="absolute right-2 top-2 z-20 flex gap-1 opacity-0 transition-opacity [.relative:hover_&]:opacity-100">
+      {/* Preview tools — shown on hover. Composition guides + frame snapshot are
+          video-only craft tools; hidden in Beats mode to keep the surface small. */}
+      <div className={`absolute right-2 top-2 z-20 flex gap-1 opacity-0 transition-opacity [.relative:hover_&]:opacity-100 ${videoTools ? '' : 'hidden'}`}>
         <button
           onClick={() => setShowGuides((v) => !v)}
           title={showGuides ? 'Hide composition guides' : 'Show composition guides (thirds + safe area)'}

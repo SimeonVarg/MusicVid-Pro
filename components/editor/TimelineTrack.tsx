@@ -72,7 +72,7 @@ export function TimelineTrackInner({
   const sourceFile = isVideo ? (track as VideoTrack).file : null;
   const isLocked = track.isLocked;
   const paddedSeconds = isAudio && 'extensionPaddingSeconds' in track ? track.extensionPaddingSeconds : 0;
-  const baseColor = isText ? '#ec4899' : isMidi ? '#8b5cf6' : isAudio ? '#a3d924' : '#06b6d4';
+  const baseColor = isText ? '#ec4899' : isMidi ? '#84b31a' : isAudio ? '#a3d924' : '#06b6d4';
   const hoverColor = isText ? '#f472b6' : isMidi ? '#a78bfa' : isAudio ? '#b7e830' : '#22d3ee';
   const isSelected = selectedTrackIds.includes(track.id);
   const minDuration = 0.05;
@@ -468,7 +468,7 @@ export function TimelineTrackInner({
                     y={ny}
                     width={Math.min(nw, Math.max(0, trimmedWidth - nx))}
                     height={noteH}
-                    fill="#ede9fe"
+                    fill="#f7ffe1"
                     opacity={0.35 + 0.6 * n.velocity}
                     cornerRadius={1}
                   />

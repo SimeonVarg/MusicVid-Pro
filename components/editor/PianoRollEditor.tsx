@@ -93,7 +93,7 @@ function VelocityRow({ initial, onChange }: { initial: number; onChange: (v: num
       </div>
       <input type="range" min={1} max={127} step={1} value={v}
         onChange={(e) => set(Number(e.target.value))}
-        className="h-2 w-full cursor-pointer accent-violet-400" aria-label="Note velocity" />
+        className="h-2 w-full cursor-pointer accent-signal-300" aria-label="Note velocity" />
       <div className="mt-1 flex gap-1">
         {[
           { label: 'pp', v: 30 }, { label: 'p', v: 55 }, { label: 'mf', v: 80 }, { label: 'f', v: 105 }, { label: 'ff', v: 125 },
@@ -451,7 +451,7 @@ export function PianoRollEditor() {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-800 bg-zinc-900 px-4 py-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-violet-300">Piano Roll</span>
+            <span className="text-[11px] font-mono uppercase tracking-wider text-signal-300">Piano Roll</span>
             <span className="text-sm font-semibold text-zinc-100">{track.name}</span>
           </div>
           <div className="mx-1 h-6 w-px bg-zinc-700" />
@@ -497,7 +497,10 @@ export function PianoRollEditor() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
-              onClick={() => setLoop(loop ? null : { start: trackOffset, end: trackOffset + Math.max(track.duration, beatsToSeconds(contentBeats, bpm)) })}
+              // Loop the CLIP's musical extent (track.duration is already rounded up
+              // to whole bars by contentLengthBeats) — not the padded 8-bar grid,
+              // which looped ~14s of silence past the end of a short clip.
+              onClick={() => setLoop(loop ? null : { start: trackOffset, end: trackOffset + track.duration })}
               title={loop ? 'Looping the clip — click to turn off' : 'Loop the clip during playback'}
               className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 loop ? 'border-signal-400/60 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
@@ -535,12 +538,13 @@ export function PianoRollEditor() {
                     className="flex cursor-pointer items-center justify-between pl-2 pr-1.5 select-none"
                     style={{
                       height: ROW_H,
-                      background: active ? '#7c3aed' : black ? '#1c1c22' : '#e7e5e4',
-                      color: active ? '#fff' : black ? '#a1a1aa' : '#3f3f46',
-                      borderBottom: p % 12 === 0 ? '1px solid #6d28d9' : black ? '1px solid #101014' : '1px solid #c8c6c3',
+                      background: active ? '#84b31a' : black ? '#1c1c22' : '#e7e5e4',
+                      // Signal fills pair with dark text (design-system rule).
+                      color: active ? '#182605' : black ? '#a1a1aa' : '#3f3f46',
+                      borderBottom: p % 12 === 0 ? '1px solid #648c12' : black ? '1px solid #101014' : '1px solid #c8c6c3',
                     }}>
                     <span className="text-[9px] font-medium leading-none">{pitchToName(p)}</span>
-                    {black && <span className="ml-1 h-[10px] w-6 rounded-sm bg-zinc-900" style={{ background: active ? '#5b21b6' : '#0b0b0e' }} />}
+                    {black && <span className="ml-1 h-[10px] w-6 rounded-sm bg-zinc-900" style={{ background: active ? '#4a680f' : '#0b0b0e' }} />}
                   </div>
                 );
               })}
@@ -585,12 +589,12 @@ export function PianoRollEditor() {
                     className="group absolute flex items-center overflow-hidden rounded-sm px-1"
                     style={{
                       left: beatToX(n.startBeat), top: pitchToY(n.pitch) + 1, width: w, height: ROW_H - 2,
-                      background: selected ? '#c4b5fd' : '#8b5cf6',
-                      border: selected ? '1px solid #ede9fe' : '1px solid #6d28d9',
+                      background: selected ? '#cdf25e' : '#84b31a',
+                      border: selected ? '1px solid #f7ffe1' : '1px solid #648c12',
                       opacity: 0.5 + 0.5 * n.velocity,
                     }}
                     title={`${pitchToName(n.pitch)} · vel ${(n.velocity * 127) | 0}`}>
-                    {w > 26 && <span className="pointer-events-none truncate text-[9px] font-medium text-violet-950">{pitchToName(n.pitch)}</span>}
+                    {w > 26 && <span className="pointer-events-none truncate text-[9px] font-medium text-signal-950">{pitchToName(n.pitch)}</span>}
                     <div data-note="1" onPointerDown={(e) => { e.stopPropagation(); beginNoteDrag(e, n, 'resize'); }}
                       className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/0 group-hover:bg-white/40" />
                   </div>

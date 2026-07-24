@@ -37,9 +37,12 @@ import { metronomeEngine } from '@/lib/audio/metronome';
 import { parseMidiFile } from '@/lib/midi/midiImport';
 import { TUTORIAL_STEPS, QUICK_TOUR_STEPS } from '@/lib/tutorial/tutorialSteps';
 import type { TutorialMode } from './slices/tutorialSlice';
+import type { EditorMode } from './slices/uiSlice';
 
 // Re-export slice types for consumers
 export type { UiState, UiActions } from './slices/uiSlice';
+export type { EditorMode } from './slices/uiSlice';
+export { showsAudioTools, showsVideoTools } from './slices/uiSlice';
 export type { TimelineSliceState, TimelineSliceActions } from './slices/timelineSlice';
 export type { PlaybackSliceState, PlaybackSliceActions } from './slices/playbackSlice';
 export type { TracksSliceState, TracksSliceActions } from './slices/tracksSlice';
@@ -212,6 +215,7 @@ export interface MusicalContext {
   showMetronome: boolean;
   metronomeVolume: number;
   countInBars: number;
+  latencyCompensation: boolean;
 }
 
 export interface ExportSettings {
@@ -243,7 +247,7 @@ export interface EditorState {
   selectedRegion: { start: number; end: number } | null;
   inspectorCollapsed: boolean;
   exportDialogOpen: boolean;
-  advancedAudio: boolean;
+  mode: EditorMode;
   mixerOpen: boolean;
   trackContextMenu: { trackId: string; x: number; y: number } | null;
   clipboardTrack:
@@ -328,6 +332,7 @@ export interface EditorState {
   setMetronomeVisibility: (visible: boolean) => void;
   setMetronomeVolume: (volume: number) => void;
   setCountInBars: (bars: number) => void;
+  setLatencyCompensation: (on: boolean) => void;
   setZoom: (zoom: number, anchorX?: number) => void;
   setScrollX: (scrollX: number) => void;
   setSnapToGrid: (snap: boolean) => void;
@@ -348,7 +353,7 @@ export interface EditorState {
   pasteTrack: (trackId: string, offset?: number) => void;
   setSelectedRegionStart: (time: number) => void;
   setSelectedRegionEnd: (time: number) => void;
-  setAdvancedAudio: (on: boolean) => void;
+  setMode: (mode: EditorMode) => void;
   setMixerOpen: (open: boolean) => void;
   setTrackVolume: (id: string, volume: number) => void;
   setTrackPan: (id: string, pan: number) => void;
@@ -1172,7 +1177,12 @@ export const useEditorStore = create<EditorState>()(
           set((state) => {
             const next = Math.max(0, Math.min(time, state.timeline.duration || time));
             state.timeline.currentTime = next;
-            if (state.timeline.isPlaying) playbackStartMs = performance.now() - next * 1000;
+            // Seed the same latency offset the tick subtracts, or a seek would
+            // visibly jump backwards by the compensation amount.
+            if (state.timeline.isPlaying) {
+              const L = (state.musical.latencyCompensation ?? true) ? AudioContextManager.outputLatencySec() : 0;
+              playbackStartMs = performance.now() - (next + L) * 1000;
+            }
           });
           // Reschedule MIDI from the new playhead so it stays in sync after a seek.
           const s = get();
@@ -1272,6 +1282,10 @@ export const useEditorStore = create<EditorState>()(
           metronomeEngine.setVolume(v);
         },
 
+        setLatencyCompensation: (on: boolean) => {
+          set((state) => { state.musical.latencyCompensation = on; });
+        },
+
         setCountInBars: (bars: number) => {
           set((state) => { state.musical.countInBars = Math.max(0, Math.min(4, Math.round(bars))); });
         },
@@ -1322,17 +1336,26 @@ export const useEditorStore = create<EditorState>()(
           // Actually kick off the transport. Split out so a count-in can delay it.
           const begin = () => {
             if (get().timeline.isPlaying) return;
-            playbackStartMs = performance.now() - get().timeline.currentTime * 1000;
+            // Output-latency compensation. Audio we schedule now is HEARD one
+            // `outputLatency` later (Bluetooth ≈ 150–300ms), so an uncompensated
+            // playhead runs ahead of the sound. We leave scheduling alone and lag
+            // the VISUAL clock by the same amount: seed the start time L ahead, then
+            // subtract L when reporting, so `currentTime` tracks what you're hearing.
+            // L is 0 on wired output, making this a no-op there.
+            const latency = () =>
+              (get().musical.latencyCompensation ?? true) ? AudioContextManager.outputLatencySec() : 0;
+            playbackStartMs = performance.now() - (get().timeline.currentTime + latency()) * 1000;
             const tick = () => {
               const state = get();
               if (!state.timeline.isPlaying) return;
-              const elapsed = (performance.now() - playbackStartMs) / 1000;
+              const L = latency();
+              const elapsed = (performance.now() - playbackStartMs) / 1000 - L;
               const duration = state.timeline.duration;
               const loop = state.timeline.loop;
               // Loop: when the playhead passes the loop end, jump back to the start
               // and reschedule MIDI voices + the click from there.
               if (loop && loop.end > loop.start && elapsed >= loop.end) {
-                playbackStartMs = performance.now() - loop.start * 1000;
+                playbackStartMs = performance.now() - (loop.start + L) * 1000;
                 set((draft) => { draft.timeline.currentTime = loop.start; });
                 if (state.midiTracks.length > 0) {
                   midiPlaybackEngine.start(toPlayableMidi(state.midiTracks, anyTrackSoloed(state)), loop.start, state.musical.bpm).catch(() => {});
@@ -1343,7 +1366,13 @@ export const useEditorStore = create<EditorState>()(
                 playbackRafId = requestAnimationFrame(tick);
                 return;
               }
-              const nextTime = duration > 0 ? Math.min(elapsed, duration) : elapsed;
+              // While looping, the cycle region — not the content length — is the
+              // upper bound. Clamping to `duration` here froze the playhead at the
+              // end of the content for the rest of the cycle whenever the loop
+              // region extended past it (e.g. looping 8 empty bars over a 2s clip).
+              const loopActive = !!loop && loop.end > loop.start;
+              const upperBound = loopActive ? loop!.end : duration;
+              const nextTime = Math.max(0, upperBound > 0 ? Math.min(elapsed, upperBound) : elapsed);
               set((draft) => { draft.timeline.currentTime = nextTime; });
               if (!loop && duration > 0 && nextTime >= duration) {
                 set((draft) => { draft.timeline.isPlaying = false; });
@@ -1407,8 +1436,12 @@ export const useEditorStore = create<EditorState>()(
           set((state) => { state.exportDialogOpen = open; });
         },
 
-        setAdvancedAudio: (on: boolean) => {
-          set((state) => { state.advancedAudio = on; });
+        setMode: (mode: EditorMode) => {
+          set((state) => { state.mode = mode; });
+          // Leaving a mode shouldn't strand its modals open.
+          if (mode === 'video') {
+            set((state) => { state.mixerOpen = false; state.pianoRollTrackId = null; });
+          }
         },
 
         setMixerOpen: (open: boolean) => {
