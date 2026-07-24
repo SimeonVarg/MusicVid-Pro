@@ -9,6 +9,7 @@ import { InspectorPanel } from '@/components/editor/InspectorPanel';
 import { ExportModal } from '@/components/editor/ExportModal';
 import { PianoRollEditor } from '@/components/editor/PianoRollEditor';
 import { MixerPanel } from '@/components/editor/MixerPanel';
+import { InstrumentPicker } from '@/components/editor/InstrumentPicker';
 import { TutorialOverlay } from '@/components/editor/TutorialOverlay';
 import { isMidiFile } from '@/lib/midi/midiImport';
 import { EditorErrorBoundary } from '@/components/editor/EditorErrorBoundary';
@@ -289,6 +290,7 @@ export default function EditorPage() {
         <ExportModal />
         <PianoRollEditor />
         <MixerPanel />
+        <InstrumentPicker />
         <ErrorToast />
         <TutorialOverlay />
       </div>

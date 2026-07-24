@@ -52,8 +52,6 @@ export function Toolbar() {
     setZoom,
     setScrollX,
     saveProject,
-    addMidiTrack,
-    openPianoRoll,
     setLoop,
     selectedRegion,
     mode,
@@ -63,6 +61,7 @@ export function Toolbar() {
     setLatencyCompensation,
     mixerOpen,
     setMixerOpen,
+    setInstrumentPickerOpen,
   } = useEditorStore();
 
   const audioTools = showsAudioTools(mode);
@@ -250,8 +249,8 @@ export function Toolbar() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  title="Add instrument (MIDI) track"
-                  onClick={() => { const id = addMidiTrack(); openPianoRoll(id); }}
+                  title="Add instrument — open the studio to pick, play & record"
+                  onClick={() => setInstrumentPickerOpen(true)}
                 >
                   <Piano className="h-3.5 w-3.5" />
                 </Button>

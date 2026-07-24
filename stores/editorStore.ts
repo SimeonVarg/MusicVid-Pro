@@ -254,6 +254,7 @@ export interface EditorState {
   exportDialogOpen: boolean;
   mode: EditorMode;
   mixerOpen: boolean;
+  instrumentPickerOpen: boolean;
   trackContextMenu: { trackId: string; x: number; y: number } | null;
   clipboardTrack:
     | (VideoTrack & { kind: 'video' })
@@ -361,6 +362,7 @@ export interface EditorState {
   setSelectedRegionEnd: (time: number) => void;
   setMode: (mode: EditorMode) => void;
   setMixerOpen: (open: boolean) => void;
+  setInstrumentPickerOpen: (open: boolean) => void;
   setTrackVolume: (id: string, volume: number) => void;
   setTrackPan: (id: string, pan: number) => void;
   setTrackMuted: (id: string, muted: boolean) => void;
@@ -1487,6 +1489,10 @@ export const useEditorStore = create<EditorState>()(
 
         setMixerOpen: (open: boolean) => {
           set((state) => { state.mixerOpen = open; });
+        },
+
+        setInstrumentPickerOpen: (open: boolean) => {
+          set((state) => { state.instrumentPickerOpen = open; });
         },
 
         // ── Mixer actions (video/audio/MIDI by id) ──────────────────────────

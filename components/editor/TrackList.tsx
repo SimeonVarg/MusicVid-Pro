@@ -31,7 +31,7 @@ export function TrackList() {
     duplicateTrack,
     splitTrack,
     openPianoRoll,
-    addMidiTrack,
+    setInstrumentPickerOpen,
     clipboardTrack,
     timeline,
     mode,
@@ -210,7 +210,7 @@ export function TrackList() {
               <Button
                 variant="outline"
                 className="w-full justify-start gap-2"
-                onClick={() => { const id = addMidiTrack(); setActiveMenu('tracks'); openPianoRoll(id); }}
+                onClick={() => { setActiveMenu('tracks'); setInstrumentPickerOpen(true); }}
               >
                 <Piano className="h-4 w-4" />
                 Add Instrument

@@ -27,6 +27,7 @@ export function useKeyboardShortcuts() {
     pianoRollTrackId,
     exportDialogOpen,
     mixerOpen,
+    instrumentPickerOpen,
   } = useEditorStore();
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function useKeyboardShortcuts() {
       // for the global handler itself to bail. Without this, Backspace in the piano
       // roll deletes the selected note AND removes the underlying track here, which
       // unmounts the piano roll ("exiting the midi menu"), and Space double-toggles.
-      if (pianoRollTrackId || exportDialogOpen || mixerOpen) {
+      if (pianoRollTrackId || exportDialogOpen || mixerOpen || instrumentPickerOpen) {
         return;
       }
 
@@ -189,5 +190,6 @@ export function useKeyboardShortcuts() {
     pianoRollTrackId,
     exportDialogOpen,
     mixerOpen,
+    instrumentPickerOpen,
   ]);
 }

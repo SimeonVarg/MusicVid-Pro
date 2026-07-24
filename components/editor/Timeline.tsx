@@ -38,7 +38,7 @@ export function Timeline() {
     removeTrack,
     updateTrack,
     openPianoRoll,
-    addMidiTrack,
+    setInstrumentPickerOpen,
     addTextTrack,
     clipboardTrack,
     setCurrentTime,
@@ -340,7 +340,7 @@ export function Timeline() {
 
   const buildBgMenu = (time: number): MenuItem[] => [
     { type: 'label', label: 'Add track' },
-    { label: 'Instrument (MIDI)', icon: Music, onSelect: () => { const id = addMidiTrack(); openPianoRoll(id); } },
+    { label: 'Instrument (MIDI)', icon: Music, onSelect: () => setInstrumentPickerOpen(true) },
     { label: 'Text clip', icon: Type, onSelect: () => addTextTrack('New text') },
     { type: 'separator' },
     { label: 'Paste here', icon: ClipboardPaste, disabled: !clipboardTrack, onSelect: () => pasteTrack('', Math.max(0, time)) },

@@ -1,5 +1,44 @@
 # MusicVid Pro — Status (July 24, 2026: cycle-region loop, mode layout split)
 
+## Round 11 (July 24): Instrument Studio (studio-rack picker + playable + record)
+
+Owner: "beats mode add audio and instrument should be more fun and interactive …
+show each instrument, select it, taken to a menu where you can play it and record
+from that menu digitally … instruments look real … pick its own unique direction …
+No AI cliché menus with same boring colors, no badly drawn SVG graphics." He picked
+the **Studio rack** direction (of rack / crate-cards / neon).
+
+New `components/editor/InstrumentPicker.tsx` — a modal with two states:
+- **Rack browse.** A stack of instrument "units", each with its OWN material
+  (panel gradient), accent colour, and CSS-built motif (piano keys / wood-grain /
+  strings / brass keys / xylophone bars / pad grid / CR-78 buttons / synth
+  knob+sliders) + mounting ears with screw dots. Grouped Instruments / Drums &
+  machines / Synths (labelled "extras"). No SVG cartoons — the "real" look is
+  layered gradients + shadows, so it reads like a product line, not a flat menu.
+- **Play view.** A real playable surface — piano keyboard (mouse + A–K row, Z/X
+  octave) for melodic, a 6-pad grid (mouse + A/S/D/F/G/H) for drums — auditioned
+  live through the SAME vendored sample engine (`midiPlaybackEngine.previewNote`).
+  A transport RECORDS a take (1-bar count-in + metronome click, optional 1/16
+  quantize), and **Add to project** creates a MIDI track with the instrument and
+  the recorded notes, dropped on the timeline. Empty take → opens the piano roll.
+
+Wiring: `instrumentPickerOpen` UI state + `setInstrumentPickerOpen` (uiSlice +
+store). All three "add instrument" entry points (Toolbar, TrackList upload menu,
+timeline bg menu) now open the studio instead of silently creating a piano track.
+The global shortcuts bail while it's open (`useKeyboardShortcuts` guard) so the
+A–K keys play notes, not split/delete/play the timeline. sr-only `DialogTitle`
+for a11y (Radix warning).
+
+Verified **in the real built app** (not just tests): switched to Beats → the rack
+renders all 11 units with taglines/kind tags → opened Grand Piano → keyboard +
+transport render → "Add to project" created "Grand Piano 1" (2.0s, instrument set)
+and opened the piano roll. No console errors (Tone/samples load clean). tsc clean,
+suite 266/266, production build clean (`/editor` 178 kB).
+
+Next (owner's call): audio-clip repeat-to-fill looping; the track-header gutter
+(instrument row aligned to lanes); sustained-note hold + velocity-by-position in
+the play surface.
+
 ## Round 10 (July 24): loop-icon affordance + toolbar declutter
 
 Owner (3rd loop pass): "it repeatedly pastes the selected notes over the duration

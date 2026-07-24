@@ -27,6 +27,8 @@ export interface UiState {
   mode: EditorMode;
   /** The mixer modal (per-track volume/pan/mute/solo). */
   mixerOpen: boolean;
+  /** The studio-rack instrument picker (browse → play → add a MIDI track). */
+  instrumentPickerOpen: boolean;
   trackContextMenu: { trackId: string; x: number; y: number } | null;
   clipboardTrack:
     | (VideoTrack & { kind: 'video' })
@@ -47,6 +49,7 @@ export interface UiActions {
   setSelectedRegionEnd: (time: number) => void;
   setMode: (mode: EditorMode) => void;
   setMixerOpen: (open: boolean) => void;
+  setInstrumentPickerOpen: (open: boolean) => void;
 }
 
 export const uiInitialState: UiState = {
@@ -56,6 +59,7 @@ export const uiInitialState: UiState = {
   exportDialogOpen: false,
   mode: 'video',
   mixerOpen: false,
+  instrumentPickerOpen: false,
   trackContextMenu: null,
   clipboardTrack: null,
 };
