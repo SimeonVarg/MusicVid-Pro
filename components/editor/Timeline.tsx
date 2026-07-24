@@ -46,13 +46,23 @@ export function Timeline() {
     setSelectedTrackIds,
     setZoom,
     setScrollX,
+    setLoop,
   } = useEditorStore();
 
   const bgMenu = useContextMenu();
 
+  // Cycle (loop) region drag state — GarageBand-style: drag in the ruler's lower
+  // "cycle lane" to create/move/resize the loop; a signal band shows what loops.
+  const loopDragRef = useRef<
+    { mode: 'create' | 'move' | 'resize-start' | 'resize-end'; anchor: number; origStart: number; origEnd: number } | null
+  >(null);
+
   const [trackHeightScale, setTrackHeightScale] = useState(1.0);
   const TRACK_HEIGHT = Math.round(80 * trackHeightScale);
   const RULER_HEIGHT = 40;
+  const CYCLE_LANE_H = 11;                       // grab strip at the bottom of the ruler
+  const CYCLE_Y = RULER_HEIGHT - CYCLE_LANE_H;   // top of the cycle lane
+  const LOOP_HANDLE_PX = 7;                       // edge grab tolerance
   const H_SCROLLBAR_HEIGHT = 40;
   const V_SCROLLBAR_WIDTH = 14;
   const PIXELS_PER_SECOND = 100 * timeline.zoom;
@@ -133,6 +143,14 @@ export function Timeline() {
     setCurrentTime(clickedTime);
   };
 
+  // ── Loop / cycle-region geometry (screen ↔ time, consistent with rendering) ──
+  const timeToX = (t: number) => t * PIXELS_PER_SECOND + clampedScroll;
+  const xToTime = (x: number) => Math.max(0, (x - clampedScroll) / PIXELS_PER_SECOND);
+  const secPerBeat = 60 / (musical.bpm || 120);
+  const snapLoopTime = (t: number) =>
+    timeline.snapToGrid && secPerBeat > 0 ? Math.max(0, Math.round(t / secPerBeat) * secPerBeat) : Math.max(0, t);
+  const inCycleLane = (y: number) => y >= CYCLE_Y && y <= RULER_HEIGHT;
+
   const clearTrackSelection = () => {
     setSelectedTrackIds([]);
   };
@@ -169,6 +187,11 @@ export function Timeline() {
       return;
     }
 
+    // The cycle lane is loop-only; a click there must not seek the playhead.
+    if (inCycleLane(pointerPosition.y)) {
+      return;
+    }
+
     clearTrackSelection();
 
     if (isRulerArea(stage) || e.target === stage) {
@@ -195,6 +218,31 @@ export function Timeline() {
       return;
     }
 
+    // Cycle lane (bottom strip of the ruler): create / move / resize the loop.
+    if (inCycleLane(pointerPosition.y)) {
+      clearTrackSelection();
+      const t = snapLoopTime(xToTime(pointerPosition.x));
+      const loop = timeline.loop;
+      if (loop && loop.end > loop.start) {
+        const sX = timeToX(loop.start);
+        const eX = timeToX(loop.end);
+        if (Math.abs(pointerPosition.x - sX) <= LOOP_HANDLE_PX) {
+          loopDragRef.current = { mode: 'resize-start', anchor: t, origStart: loop.start, origEnd: loop.end };
+        } else if (Math.abs(pointerPosition.x - eX) <= LOOP_HANDLE_PX) {
+          loopDragRef.current = { mode: 'resize-end', anchor: t, origStart: loop.start, origEnd: loop.end };
+        } else if (pointerPosition.x > sX && pointerPosition.x < eX) {
+          loopDragRef.current = { mode: 'move', anchor: xToTime(pointerPosition.x), origStart: loop.start, origEnd: loop.end };
+        } else {
+          loopDragRef.current = { mode: 'create', anchor: t, origStart: t, origEnd: t };
+          setLoop({ start: t, end: t + secPerBeat });
+        }
+      } else {
+        loopDragRef.current = { mode: 'create', anchor: t, origStart: t, origEnd: t };
+        setLoop({ start: t, end: t + secPerBeat });
+      }
+      return;
+    }
+
     clearTrackSelection();
 
     if (!isRulerArea(stage) && e.target !== stage) {
@@ -206,6 +254,31 @@ export function Timeline() {
   };
 
   const handleMouseMove = (e: any) => {
+    const drag = loopDragRef.current;
+    if (drag) {
+      const p = e.target.getStage()?.getPointerPosition();
+      if (!p) return;
+      const raw = xToTime(p.x);
+      const t = snapLoopTime(raw);
+      const minW = Math.max(secPerBeat, 0.05);
+      if (drag.mode === 'create') {
+        const lo = Math.min(drag.anchor, t);
+        const hi = Math.max(drag.anchor, t);
+        setLoop({ start: lo, end: Math.max(hi, lo + minW) });
+      } else if (drag.mode === 'resize-start') {
+        setLoop({ start: Math.min(t, drag.origEnd - minW), end: drag.origEnd });
+      } else if (drag.mode === 'resize-end') {
+        setLoop({ start: drag.origStart, end: Math.max(t, drag.origStart + minW) });
+      } else if (drag.mode === 'move') {
+        const delta = raw - drag.anchor;
+        let ns = drag.origStart + delta;
+        let ne = drag.origEnd + delta;
+        if (timeline.snapToGrid) { const s = snapLoopTime(ns); ne += s - ns; ns = s; }
+        if (ns < 0) { ne -= ns; ns = 0; }
+        setLoop({ start: ns, end: ne });
+      }
+      return;
+    }
     if (!isScrubbing) {
       return;
     }
@@ -214,6 +287,7 @@ export function Timeline() {
 
   const stopScrubbing = () => {
     setIsScrubbing(false);
+    if (loopDragRef.current) loopDragRef.current = null;
   };
 
   const handleWheel = (e: any) => {
@@ -406,6 +480,17 @@ export function Timeline() {
             </Group>
           </Group>
 
+          {/* Cycle (loop) region — the visible, draggable loop band + track tint */}
+          <CycleRegion
+            loop={timeline.loop}
+            pixelsPerSecond={PIXELS_PER_SECOND}
+            scrollX={clampedScroll}
+            cycleY={CYCLE_Y}
+            laneH={CYCLE_LANE_H}
+            fullHeight={RULER_HEIGHT + trackViewportHeight}
+            viewportWidth={trackViewportWidth}
+          />
+
           {/* Playhead */}
           <Playhead
             currentTime={timeline.currentTime}
@@ -516,6 +601,51 @@ export function Timeline() {
 }
 
 // Grid Lines Component (fix return type)
+/** The loop/cycle region: an always-present grab lane at the bottom of the ruler,
+ *  plus (when a loop is set) a signal-green band, boundary lines, a full-height
+ *  track tint, and edge handles. Non-interactive — the Stage handlers own drag. */
+function CycleRegion({
+  loop,
+  pixelsPerSecond,
+  scrollX,
+  cycleY,
+  laneH,
+  fullHeight,
+  viewportWidth,
+}: {
+  loop: { start: number; end: number } | null;
+  pixelsPerSecond: number;
+  scrollX: number;
+  cycleY: number;
+  laneH: number;
+  fullHeight: number;
+  viewportWidth: number;
+}): React.ReactElement {
+  const SIGNAL = '#a3d924';
+  const active = !!loop && loop.end > loop.start;
+  const startX = active ? loop!.start * pixelsPerSecond + scrollX : 0;
+  const endX = active ? loop!.end * pixelsPerSecond + scrollX : 0;
+  return (
+    <Group clip={{ x: 0, y: 0, width: viewportWidth, height: fullHeight }} listening={false}>
+      {/* Always-present cycle lane so the loop control is discoverable */}
+      <Rect x={0} y={cycleY} width={viewportWidth} height={laneH} fill={SIGNAL} opacity={0.05} />
+      <Line points={[0, cycleY + 0.5, viewportWidth, cycleY + 0.5]} stroke={SIGNAL} strokeWidth={1} opacity={0.18} />
+      {active && (
+        <>
+          {/* Full-height tint over the tracks so you see exactly what repeats */}
+          <Rect x={startX} y={cycleY} width={endX - startX} height={fullHeight - cycleY} fill={SIGNAL} opacity={0.08} />
+          <Line points={[startX, cycleY, startX, fullHeight]} stroke={SIGNAL} strokeWidth={1} opacity={0.55} />
+          <Line points={[endX, cycleY, endX, fullHeight]} stroke={SIGNAL} strokeWidth={1} opacity={0.55} />
+          {/* The cycle bar + edge grips */}
+          <Rect x={startX} y={cycleY} width={endX - startX} height={laneH} fill={SIGNAL} cornerRadius={2} opacity={0.92} />
+          <Rect x={startX - 2} y={cycleY} width={4} height={laneH} fill="#ecffbf" cornerRadius={1.5} />
+          <Rect x={endX - 2} y={cycleY} width={4} height={laneH} fill="#ecffbf" cornerRadius={1.5} />
+        </>
+      )}
+    </Group>
+  );
+}
+
 function GridLines({
   width,
   height,

@@ -142,6 +142,11 @@ export default function EditorPage() {
     return () => { window.removeEventListener('click', load); window.removeEventListener('keydown', load); };
   }, []);
 
+  const mode = useEditorStore((s) => s.mode);
+  // Beats mode is a DAW: the video monitor is pure noise, so it disappears and the
+  // arrangement (timeline + tracks) fills the workspace. Video & Hybrid keep it.
+  const showPreviewPane = mode !== 'daw';
+
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
   const isAdjustingBpm = useEditorStore((s) => s.isAdjustingBpm);
   const isProcessingVideoSpeed = useEditorStore((s) => s.isProcessingVideoSpeed);
@@ -189,34 +194,38 @@ export default function EditorPage() {
           {/* ── Main area ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* Preview pane */}
-            {!previewDetached ? (
-              <div
-                className="relative flex shrink-0 items-center justify-center border-b border-zinc-800 bg-black"
-                style={{ height: previewSplit.size, maxHeight: '55vh' }}
-              >
-                <VideoPreview onDetach={handleDetach} />
-              </div>
-            ) : (
-              /* Placeholder when detached */
-              <div
-                className="relative flex shrink-0 flex-col items-center justify-center gap-3 border-b border-zinc-800 bg-zinc-950"
-                style={{ height: previewSplit.size }}
-              >
-                <Tv2 className="h-10 w-10 text-zinc-700" />
-                <p className="text-sm text-zinc-500">Preview is in a floating window</p>
-                <button
-                  onClick={handleDock}
-                  className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-1.5 text-xs text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
-                >
-                  Dock back
-                </button>
-              </div>
+            {/* Preview pane — hidden entirely in Beats (DAW) mode */}
+            {showPreviewPane && (
+              <>
+                {!previewDetached ? (
+                  <div
+                    className="relative flex shrink-0 items-center justify-center border-b border-zinc-800 bg-black"
+                    style={{ height: previewSplit.size, maxHeight: '55vh' }}
+                  >
+                    <VideoPreview onDetach={handleDetach} />
+                  </div>
+                ) : (
+                  /* Placeholder when detached */
+                  <div
+                    className="relative flex shrink-0 flex-col items-center justify-center gap-3 border-b border-zinc-800 bg-zinc-950"
+                    style={{ height: previewSplit.size }}
+                  >
+                    <Tv2 className="h-10 w-10 text-zinc-700" />
+                    <p className="text-sm text-zinc-500">Preview is in a floating window</p>
+                    <button
+                      onClick={handleDock}
+                      className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-1.5 text-xs text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
+                    >
+                      Dock back
+                    </button>
+                  </div>
+                )}
+
+                <ResizeDivider direction="vertical" onMouseDown={previewSplit.onMouseDown} />
+              </>
             )}
 
-            <ResizeDivider direction="vertical" onMouseDown={previewSplit.onMouseDown} />
-
-            {/* Timeline pane */}
+            {/* Timeline pane — the arrangement. Fills the workspace in Beats mode. */}
             <div className="min-h-0 flex-1 overflow-hidden bg-zinc-900">
               <Timeline />
             </div>
@@ -234,7 +243,7 @@ export default function EditorPage() {
         </div>
 
         {/* Floating VideoPreview window */}
-        {previewDetached && (
+        {showPreviewPane && previewDetached && (
           <FloatingWindow
             title="Video Preview"
             initialWidth={640}

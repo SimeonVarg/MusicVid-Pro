@@ -1,3 +1,56 @@
+# MusicVid Pro — Status (July 24, 2026: cycle-region loop, mode layout split)
+
+## Round 8 (July 24 pm): GarageBand-style loop + beats-mode layout
+
+### Loop, rebuilt to match other DAWs (owner: "still literally cannot get loop to work")
+The prior fix corrected the transport math but left the real problem: **there was
+no visible, draggable loop region.** Every DAW (GarageBand cycle bar, Ableton loop
+brace, FL playlist selection) shows a region you can see and drag; ours only
+flipped an invisible flag, so clicking Loop + Play did something you couldn't see
+or control. Fixed by adding a real **cycle region** to the timeline:
+- A signal-green **cycle lane** at the bottom of the ruler (always faintly
+  visible so it's discoverable). Drag in it to create a loop; drag the body to
+  move it; drag either edge to resize. Snaps to the beat grid when snap is on.
+- A **band** in the lane + a **full-height tint** over the tracks show exactly
+  what repeats. (`CycleRegion` in `Timeline.tsx`; drag handled in the Stage
+  mouse handlers via `loopDragRef`, mirroring the existing scrub path.)
+- The transport already cycles this correctly (round 7 fix).
+
+**Verified for real this time (not a synthetic poke):**
+1. **Transport logic** — `__tests__/transportLoop.test.ts` drives the actual
+   `play()` rAF loop with a deterministic fake clock. Proves: an 8s loop over a 2s
+   clip cycles instead of freezing; a sub-region [2s,4s] stays inside itself; and
+   with no loop, playback still stops at duration. 3/3 green.
+2. **Cycle-region rendering** — sampled the real Konva canvas pixels at three loop
+   positions (1-3s, 3-5s, 0.5-1.5s); the green band lands exactly on
+   `[start*px, end*px]` and nowhere else, and the track tint only appears inside.
+- ⚠️ **Not verifiable in this sandbox:** the physical mouse-drag gesture on the
+  cycle lane, because the Browser pane runs `visibility:hidden` so rAF never fires
+  — which kills both the transport's rAF *and* react-konva's rAF-batched redraw.
+  The drag handlers reuse the working scrub-handler pattern and the verified
+  coordinate math, but the gesture itself needs a real-browser click to confirm.
+
+### Beats mode is now a DAW layout, not a video editor with a piano roll
+Owner: "turning on beat mode should cause the video options to go away." The
+biggest offender was the **video monitor** still dominating the screen in Beats
+mode. Now (`app/editor/page.tsx`) `mode === 'daw'` hides the preview pane entirely
+and the **timeline/arrangement fills the workspace**; Video and Hybrid keep the
+monitor. DOM-verified across all three modes (preview present in video/hybrid,
+absent in daw; timeline canvas mounts in all).
+
+### KONVA VERIFICATION GOTCHA (new, cost real time — don't relearn)
+react-konva batches its canvas draws through `requestAnimationFrame`. In the
+hidden preview pane rAF is throttled to ~never, so **the Konva timeline paints
+once on mount and then freezes** — changing store state updates the Konva node
+tree but never repaints, so pixel reads go stale and look like nothing rendered
+(chased a phantom "CycleRegion doesn't draw" for several probes). To pixel-verify
+the timeline: change state → `await ~60ms` (React 18 commits via MessageChannel,
+which *does* fire while hidden) → `window.Konva.stages.forEach(s => s.draw())` to
+force a synchronous paint → then sample. Also: a hard reload is needed after
+adding a new Konva child (HMR served a stale bundle → "0 green pixels").
+
+---
+
 # MusicVid Pro — Status (July 24, 2026: modes, loop fix, latency sync)
 
 ## Round 7 (July 24): three modes, loop fix, purple purge, Bluetooth sync
