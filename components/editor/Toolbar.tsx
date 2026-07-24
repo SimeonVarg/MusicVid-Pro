@@ -195,10 +195,10 @@ export function Toolbar() {
                 className={`h-8 w-8 ${timeline.loop ? 'text-signal-400' : ''}`}
                 title={
                   timeline.loop
-                    ? 'Looping — click to turn off'
+                    ? 'Cycle on — playback repeats this region. Click to turn off.'
                     : selectedRegion && selectedRegion.end > selectedRegion.start
-                      ? 'Loop the selected region (I/O)'
-                      : 'Loop playback (whole timeline)'
+                      ? 'Cycle the selected region (loops playback over it)'
+                      : 'Cycle playback (loops the whole timeline)'
                 }
                 onClick={() => {
                   if (timeline.loop) { setLoop(null); return; }

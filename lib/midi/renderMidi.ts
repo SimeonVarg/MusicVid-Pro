@@ -8,7 +8,7 @@
  */
 import { ensureTone } from './tone';
 import type { MidiNote } from './noteUtils';
-import { beatsToSeconds, clampPitch, contentLengthBeats } from './noteUtils';
+import { beatsToSeconds, clampPitch, contentLengthBeats, midiPlayedLengthBeats, tileLoopedNotes } from './noteUtils';
 import { createVoice, loadInstrumentBuffers } from './toneInstruments';
 
 export interface RenderableMidiTrack {
@@ -18,6 +18,8 @@ export interface RenderableMidiTrack {
   notes: MidiNote[];
   transpose: number;
   volume: number;
+  /** When set and longer than the content, the pattern is looped to fill it. */
+  loopLengthBeats?: number;
 }
 
 const RELEASE_TAIL_SEC = 2; // let reverberant/long samples ring out
@@ -36,8 +38,13 @@ export async function renderMidiTrackToBlob(track: RenderableMidiTrack, bpm: num
   const Tone = await ensureTone();
   await loadInstrumentBuffers(track.instrumentId);
 
-  const contentSec = beatsToSeconds(contentLengthBeats(track.notes), bpm);
-  const lastEnd = track.notes.reduce(
+  // Expand a looped clip to its repeated notes so the export matches playback.
+  const content = contentLengthBeats(track.notes);
+  const played = midiPlayedLengthBeats(content, track.loopLengthBeats);
+  const notes = tileLoopedNotes(track.notes, content, played);
+
+  const contentSec = beatsToSeconds(played, bpm);
+  const lastEnd = notes.reduce(
     (max, n) => Math.max(max, beatsToSeconds(n.startBeat + n.durationBeats, bpm)),
     0
   );
@@ -47,7 +54,7 @@ export async function renderMidiTrackToBlob(track: RenderableMidiTrack, bpm: num
     const gain = new Tone.Gain(track.volume).toDestination();
     const voice = createVoice(track.instrumentId);
     voice.connect(gain);
-    for (const note of track.notes) {
+    for (const note of notes) {
       const startSec = beatsToSeconds(note.startBeat, bpm);
       const durSec = beatsToSeconds(note.durationBeats, bpm);
       voice.trigger(clampPitch(note.pitch + track.transpose), startSec, Math.max(0.05, durSec), note.velocity);

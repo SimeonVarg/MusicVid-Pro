@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useEditorStore, AudioTrack, TextTrack, VideoTrack } from '@/stores/editorStore';
 import { calculateBpmMultiplier } from '@/lib/utils/bpm';
 import { INSTRUMENTS } from '@/lib/midi/instruments';
+import { contentLengthBeats } from '@/lib/midi/noteUtils';
 import { Slider } from '@/components/ui/Slider';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -90,6 +91,7 @@ export function InspectorPanel() {
     transposeMidiTrack,
     quantizeMidiTrack,
     scaleMidiVelocity,
+    setMidiLoopLength,
   } = useEditorStore();
 
   const [activeTab, setActiveTab] = useState<InspectorTab>('inspect');
@@ -465,7 +467,35 @@ export function InspectorPanel() {
                   </Button>
                 </div>
 
-                <p className="text-xs text-zinc-500">{selectedMidiTrack.notes.length} notes · real instrument samples</p>
+                {/* Loop — repeat the pattern to fill N copies (GarageBand loop).
+                    Also draggable from the clip's right edge on the timeline. */}
+                {(() => {
+                  const content = contentLengthBeats(selectedMidiTrack.notes);
+                  const active = selectedMidiTrack.loopLengthBeats && selectedMidiTrack.loopLengthBeats > content + 1e-6
+                    ? Math.round(selectedMidiTrack.loopLengthBeats / content)
+                    : 1;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400" title="Repeat the pattern this many times">Loop</span>
+                      {[1, 2, 4, 8].map((mult) => (
+                        <Button
+                          key={mult}
+                          variant={active === mult ? 'default' : 'outline'}
+                          size="sm"
+                          className={`h-7 px-2 ${active === mult ? 'bg-signal-400 text-zinc-950 hover:bg-signal-300' : ''}`}
+                          onClick={() => setMidiLoopLength(selectedMidiTrack.id, mult === 1 ? null : mult * content)}
+                        >
+                          {mult === 1 ? 'Off' : `×${mult}`}
+                        </Button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <p className="text-xs text-zinc-500">
+                  {selectedMidiTrack.notes.length} notes · real instrument samples
+                  {selectedMidiTrack.loopLengthBeats && selectedMidiTrack.loopLengthBeats > contentLengthBeats(selectedMidiTrack.notes) + 1e-6 ? ' · looped' : ''}
+                </p>
               </div>
             )}
 

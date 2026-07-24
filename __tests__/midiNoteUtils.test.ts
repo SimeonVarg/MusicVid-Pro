@@ -4,12 +4,14 @@ import {
   clampPitch,
   contentLengthBeats,
   isBlackKey,
+  midiPlayedLengthBeats,
   notesActiveAt,
   pitchToName,
   quantizeNotes,
   scaleVelocities,
   secondsToBeats,
   snapBeat,
+  tileLoopedNotes,
   transposeNotes,
   type MidiNote,
 } from '../lib/midi/noteUtils';
@@ -115,5 +117,43 @@ describe('content length + active notes', () => {
     expect(notesActiveAt(notes, 0.5).map((n) => n.id)).toEqual(['a']);
     expect(notesActiveAt(notes, 1).map((n) => n.id)).toEqual([]); // boundary: a ended, b starts
     expect(notesActiveAt(notes, 1.5).map((n) => n.id)).toEqual(['b']);
+  });
+});
+
+describe('clip loop (repeat-to-fill)', () => {
+  it('played length is content unless a longer loop length is set', () => {
+    expect(midiPlayedLengthBeats(4)).toBe(4);
+    expect(midiPlayedLengthBeats(4, null)).toBe(4);
+    expect(midiPlayedLengthBeats(4, 2)).toBe(4);   // shorter than content → ignored
+    expect(midiPlayedLengthBeats(4, 16)).toBe(16); // longer → the clip loops
+  });
+
+  it('returns the pattern unchanged when not looping', () => {
+    const pattern = [note({ id: 'a', startBeat: 0, durationBeats: 1 })];
+    expect(tileLoopedNotes(pattern, 4, 4)).toBe(pattern); // played == content
+    expect(tileLoopedNotes([], 4, 16)).toEqual([]);
+  });
+
+  it('tiles a 4-beat pattern to fill 16 beats (4 repeats)', () => {
+    const pattern = [
+      note({ id: 'kick', pitch: 36, startBeat: 0, durationBeats: 1 }),
+      note({ id: 'snare', pitch: 38, startBeat: 2, durationBeats: 1 }),
+    ];
+    const tiled = tileLoopedNotes(pattern, 4, 16);
+    expect(tiled).toHaveLength(8); // 2 notes × 4 repeats
+    // repeat k starts at k*4 beats, preserving the pattern's internal timing
+    expect(tiled.map((n) => n.startBeat)).toEqual([0, 2, 4, 6, 8, 10, 12, 14]);
+    expect(tiled.map((n) => n.pitch)).toEqual([36, 38, 36, 38, 36, 38, 36, 38]);
+    // ids stay unique so the playback engine never collides them
+    expect(new Set(tiled.map((n) => n.id)).size).toBe(8);
+  });
+
+  it('trims the final repeat so nothing rings past the loop end', () => {
+    // 4-beat pattern, loop length 6 → 1.5 repeats
+    const pattern = [note({ id: 'long', startBeat: 0, durationBeats: 4 })];
+    const tiled = tileLoopedNotes(pattern, 4, 6);
+    expect(tiled).toHaveLength(2);
+    expect(tiled[0]).toMatchObject({ startBeat: 0, durationBeats: 4 });
+    expect(tiled[1]).toMatchObject({ startBeat: 4, durationBeats: 2 }); // clipped from 4 → 2
   });
 });

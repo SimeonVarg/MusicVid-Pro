@@ -91,4 +91,45 @@ describe('MIDI store actions', () => {
     useEditorStore.getState().openPianoRoll(id);
     expect(useEditorStore.getState().pianoRollTrackId).toBe(id);
   });
+
+  it('setMidiLoopLength extends the clip and only loops past the content', () => {
+    const id = useEditorStore.getState().addMidiTrack();
+    // A 4-beat (1-bar) pattern → 2s clip at 120 BPM.
+    useEditorStore.getState().updateMidiTrackNotes(id, [note({ startBeat: 0, durationBeats: 4 })]);
+    expect(useEditorStore.getState().midiTracks[0].duration).toBeCloseTo(2);
+
+    // Loop ×4 → 16 beats → 8s clip.
+    useEditorStore.getState().setMidiLoopLength(id, 16);
+    expect(useEditorStore.getState().midiTracks[0].loopLengthBeats).toBe(16);
+    expect(useEditorStore.getState().midiTracks[0].duration).toBeCloseTo(8);
+
+    // A length at/under the content clears the loop (can't loop shorter than the pattern).
+    useEditorStore.getState().setMidiLoopLength(id, 4);
+    expect(useEditorStore.getState().midiTracks[0].loopLengthBeats).toBeUndefined();
+    expect(useEditorStore.getState().midiTracks[0].duration).toBeCloseTo(2);
+  });
+
+  it('the stored pattern is unchanged by looping (non-destructive)', () => {
+    const id = useEditorStore.getState().addMidiTrack();
+    useEditorStore.getState().updateMidiTrackNotes(id, [note({ startBeat: 0, durationBeats: 1 })]);
+    useEditorStore.getState().setMidiLoopLength(id, 16);
+    // Loop lives as metadata; the source stays a single note (repeats are synthesized
+    // at playback/export via tileLoopedNotes, not baked into the clip).
+    expect(useEditorStore.getState().midiTracks[0].notes).toHaveLength(1);
+  });
+
+  it('dragging a MIDI clip edge past its content loops it (resizeTrackEdge path)', () => {
+    // This is the exact commit the timeline clip-edge drag runs on mouse-up.
+    useEditorStore.setState({ timeline: { ...useEditorStore.getState().timeline, snapToGrid: false } });
+    const id = useEditorStore.getState().addMidiTrack();
+    useEditorStore.getState().updateMidiTrackNotes(id, [note({ startBeat: 0, durationBeats: 4 })]); // 2s content
+    // Drag the right edge out to 8s → loop to 16 beats.
+    useEditorStore.getState().resizeTrackEdge(id, 'end', 8, true);
+    expect(useEditorStore.getState().midiTracks[0].loopLengthBeats).toBeCloseTo(16);
+    expect(useEditorStore.getState().midiTracks[0].duration).toBeCloseTo(8);
+    // Drag it back inside the content → loop clears (plain clip again).
+    useEditorStore.getState().resizeTrackEdge(id, 'end', 1, true);
+    expect(useEditorStore.getState().midiTracks[0].loopLengthBeats).toBeUndefined();
+    expect(useEditorStore.getState().midiTracks[0].duration).toBeCloseTo(2);
+  });
 });

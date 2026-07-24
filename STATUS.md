@@ -51,6 +51,45 @@ adding a new Konva child (HMR served a stale bundle → "0 green pixels").
 
 ---
 
+# MusicVid Pro — Status (July 24, 2026: clip loop = repeat-to-fill)
+
+## Round 9 (July 24): the REAL loop — repeat the content, not cycle the playhead
+
+Owner correction (third time on "loop", so read carefully): **"loop" means repeat
+the selected notes/audio to fill a length** — the GarageBand loop where you drag a
+region's corner and the content tiles with notches. It does NOT mean cycling the
+playhead over a region. That playhead-cycle feature still exists but is now named
+**Cycle** (GarageBand's own term), freeing "Loop" for repeat-to-fill.
+
+### What shipped (MIDI clips)
+- **Pure tiling core** (`lib/midi/noteUtils.ts`): `tileLoopedNotes(notes, contentBeats,
+  playedBeats)` repeats a pattern to fill a length, trimming the last repeat; unique
+  ids per repeat. `midiPlayedLengthBeats()` picks content-vs-loop length. Fully unit
+  tested (deterministic — the real verification, not a browser poke).
+- **Model**: `MidiTrack.loopLengthBeats?` (optional, back-compat). `syncMidiTrackDuration`
+  uses the played length; `toPlayableMidi` and `renderMidi` tile the notes so both
+  playback AND export sound the repeats. Non-destructive: the stored `notes` stay the
+  single pattern.
+- **Drag to loop**: `resizeTrackEdge` gained a MIDI branch — dragging a MIDI clip's
+  right edge past its content sets `loopLengthBeats` (GarageBand loop handle); dragging
+  back inside clears it. The timeline note-preview tiles live during the drag, with
+  dashed notch dividers at each repeat boundary.
+- **Discoverable control**: Inspector MIDI section has a **Loop: Off/×2/×4/×8** row
+  (`setMidiLoopLength`), for people who won't find the drag handle.
+- Fixed a violet the earlier purge missed: MIDI clip hover was `#a78bfa` → signal.
+
+### Verification (deterministic, browser-independent — the pane won't composite here)
+- `tileLoopedNotes`: 4 unit tests (fill 16 from 4 = 4 repeats at the right beats,
+  unique ids, final repeat trimmed, no-op when not looping).
+- Store: `setMidiLoopLength` doubles/quadruples clip duration + only loops past content;
+  looping is non-destructive; **`resizeTrackEdge('end')` drag path** sets/clears the loop.
+- 265/265 suite, clean production build (`/editor` 173 kB).
+- ⛔ NOT visually verified (pane won't composite): the on-clip notches and Inspector
+  Loop row rendering — logic is proven, the *look* needs a real-browser eyeball.
+- ⏭ Audio-clip looping not done yet — MIDI (beats) first. Audio repeat-to-fill is next.
+
+---
+
 # MusicVid Pro — Status (July 24, 2026: modes, loop fix, latency sync)
 
 ## Round 7 (July 24): three modes, loop fix, purple purge, Bluetooth sync

@@ -27,6 +27,8 @@ import {
   beatsToSeconds,
   secondsToBeats,
   contentLengthBeats,
+  midiPlayedLengthBeats,
+  tileLoopedNotes,
   quantizeNotes,
   transposeNotes,
   scaleVelocities,
@@ -188,13 +190,16 @@ export interface MidiTrack {
   offset: number;        // timeline seconds
   trimStart: number;     // always 0 — kept so timeline-duration math is uniform
   trimEnd: number;       // === duration (seconds)
-  duration: number;      // seconds, derived from note content at current BPM
+  duration: number;      // seconds, derived from played length at current BPM
   volume: number;        // 0–1
   isMuted: boolean;
   pan?: number;          // -1 (L) … 0 (center) … 1 (R); optional for back-compat
   isSoloed?: boolean;    // mixer solo; optional for back-compat
   isLocked: boolean;
   transpose: number;     // semitones, applied at playback/render
+  /** GarageBand-style clip loop: when set and > the content length, the notes
+   *  repeat to fill this many beats. Undefined = play the pattern once. */
+  loopLengthBeats?: number;
 }
 
 export interface TimelineState {
@@ -305,6 +310,7 @@ export interface EditorState {
   transposeMidiTrack: (id: string, semitones: number) => void;
   quantizeMidiTrack: (id: string, gridBeats: number) => void;
   scaleMidiVelocity: (id: string, factor: number) => void;
+  setMidiLoopLength: (id: string, loopLengthBeats: number | null) => void;
   removeTrack: (id: string) => void;
   updateTrack: (id: string, updates: Partial<VideoTrack | AudioTrack | TextTrack>) => void;
   updateVideoPreviewLayout: (
@@ -542,9 +548,12 @@ function recalculateTimelineDuration(state: {
   }, 0);
 }
 
-/** Recompute a MIDI clip's seconds-length from its notes at the given BPM. */
+/** Recompute a MIDI clip's seconds-length from its played length (content, or the
+ *  loop length when the clip is looped) at the given BPM. */
 function syncMidiTrackDuration(track: MidiTrack, bpm: number) {
-  const durationSec = beatsToSeconds(contentLengthBeats(track.notes), bpm);
+  const content = contentLengthBeats(track.notes);
+  const played = midiPlayedLengthBeats(content, track.loopLengthBeats);
+  const durationSec = beatsToSeconds(played, bpm);
   track.duration = durationSec;
   track.trimStart = 0;
   track.trimEnd = durationSec;
@@ -552,13 +561,19 @@ function syncMidiTrackDuration(track: MidiTrack, bpm: number) {
 
 /** Build the shape the realtime preview engine needs from store MIDI tracks. */
 function toPlayableMidi(tracks: MidiTrack[], anySoloed: boolean): PlayableMidiTrack[] {
-  return tracks.map((t) => ({
-    id: t.id, instrumentId: t.instrumentId, notes: t.notes,
-    offset: t.offset, volume: t.volume,
-    // Fold solo into the effective mute: soloed-out tracks are silenced.
-    isMuted: t.isMuted || (anySoloed && !t.isSoloed),
-    pan: t.pan ?? 0, transpose: t.transpose,
-  }));
+  return tracks.map((t) => {
+    const content = contentLengthBeats(t.notes);
+    const played = midiPlayedLengthBeats(content, t.loopLengthBeats);
+    return {
+      id: t.id, instrumentId: t.instrumentId,
+      // Repeat the pattern to fill the loop so playback actually loops the content.
+      notes: tileLoopedNotes(t.notes, content, played),
+      offset: t.offset, volume: t.volume,
+      // Fold solo into the effective mute: soloed-out tracks are silenced.
+      isMuted: t.isMuted || (anySoloed && !t.isSoloed),
+      pan: t.pan ?? 0, transpose: t.transpose,
+    };
+  });
 }
 
 /** True when any audio-bearing track (video/audio/MIDI) is soloed. */
@@ -909,6 +924,23 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
+        setMidiLoopLength: (id: string, loopLengthBeats: number | null) => {
+          pushHistory(get());
+          set((state) => {
+            const mt = state.midiTracks.find((t) => t.id === id);
+            if (!mt) return;
+            const content = contentLengthBeats(mt.notes);
+            // Only lengths past the content actually loop; anything else clears it.
+            mt.loopLengthBeats = loopLengthBeats && loopLengthBeats > content + 1e-6 ? loopLengthBeats : undefined;
+            syncMidiTrackDuration(mt, state.musical.bpm);
+            state.timeline.duration = recalculateTimelineDuration(state);
+          });
+          const s = get();
+          if (s.timeline.isPlaying && s.midiTracks.length > 0) {
+            midiPlaybackEngine.start(toPlayableMidi(s.midiTracks, anyTrackSoloed(s)), s.timeline.currentTime, s.musical.bpm).catch(() => {});
+          }
+        },
+
         removeTrack: (id: string) => {
           pushHistory(get());
           set((state) => {
@@ -1106,6 +1138,15 @@ export const useEditorStore = create<EditorState>()(
                 tt.trimEnd = Math.max(tt.trimStart + minDuration, snappedTime);
               }
               tt.duration = getTrackVisibleDuration(tt);
+            }
+            const mt = state.midiTracks.find((t) => t.id === trackId);
+            if (mt && edge === 'end') {
+              // A MIDI clip has no source to trim — dragging its right edge past the
+              // content loops the pattern to fill the new length (GarageBand loop).
+              const content = contentLengthBeats(mt.notes);
+              const lenBeats = secondsToBeats(Math.max(minDuration, snappedTime), musical.bpm);
+              mt.loopLengthBeats = lenBeats > content + 1e-6 ? lenBeats : undefined;
+              syncMidiTrackDuration(mt, musical.bpm);
             }
             state.timeline.duration = recalculateTimelineDuration(state);
           });
@@ -2252,7 +2293,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
     if (!t) return null;
     const { renderMidiTrackToBlob } = await import('@/lib/midi/renderMidi');
     return renderMidiTrackToBlob(
-      { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume },
+      { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume, loopLengthBeats: t.loopLengthBeats },
       st.musical.bpm
     );
   };

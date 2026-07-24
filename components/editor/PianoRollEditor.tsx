@@ -497,15 +497,15 @@ export function PianoRollEditor() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
-              // Loop the CLIP's musical extent (track.duration is already rounded up
-              // to whole bars by contentLengthBeats) — not the padded 8-bar grid,
-              // which looped ~14s of silence past the end of a short clip.
+              // Cycle = loop playback over the clip's extent while you edit (this is
+              // the transport cycle, NOT the clip loop that repeats the notes — that
+              // one lives on the timeline clip's right edge).
               onClick={() => setLoop(loop ? null : { start: trackOffset, end: trackOffset + track.duration })}
-              title={loop ? 'Looping the clip — click to turn off' : 'Loop the clip during playback'}
+              title={loop ? 'Cycle on — playback repeats this clip. Click to turn off.' : 'Cycle playback over this clip while editing'}
               className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 loop ? 'border-signal-400/60 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
               }`}>
-              <Repeat className="h-3.5 w-3.5" /> Loop
+              <Repeat className="h-3.5 w-3.5" /> Cycle
             </button>
             <button onClick={() => (isPlaying ? pause() : play())}
               className="flex items-center gap-1.5 rounded-md bg-signal-400 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-signal-300">
@@ -623,7 +623,7 @@ export function PianoRollEditor() {
 
         {/* Footer hint */}
         <div className="flex items-center gap-4 border-t border-zinc-800 bg-zinc-950 px-4 py-1.5 text-[11px] text-zinc-500">
-          <span>Click empty to add · <span className="text-zinc-300">drag empty to select</span> · drag a note to move · right-drag edge to resize · <span className="text-zinc-300">right-click for options</span> · Loop repeats the clip</span>
+          <span>Click empty to add · <span className="text-zinc-300">drag empty to select</span> · drag a note to move · right-drag edge to resize · <span className="text-zinc-300">right-click for options</span> · Cycle loops playback</span>
           <span className="ml-auto font-mono">{notes.length} notes</span>
         </div>
       </div>

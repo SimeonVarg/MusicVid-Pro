@@ -7,7 +7,7 @@ import { AudioTrack, TextTrack, VideoTrack, MidiTrack, useEditorStore } from '@/
 import { VideoProcessor, type ThumbnailFrame } from '@/lib/video/videoProcessor';
 import { WaveformVisualization } from '@/components/editor/WaveformVisualization';
 import { snapToBeatGrid } from '@/lib/utils/musicalTime';
-import { beatsToSeconds } from '@/lib/midi/noteUtils';
+import { beatsToSeconds, contentLengthBeats } from '@/lib/midi/noteUtils';
 
 interface TimelineTrackProps {
   track: (AudioTrack | VideoTrack | TextTrack | MidiTrack) & { type: 'audio' | 'video' | 'text' | 'midi' };
@@ -73,7 +73,7 @@ export function TimelineTrackInner({
   const isLocked = track.isLocked;
   const paddedSeconds = isAudio && 'extensionPaddingSeconds' in track ? track.extensionPaddingSeconds : 0;
   const baseColor = isText ? '#ec4899' : isMidi ? '#84b31a' : isAudio ? '#a3d924' : '#06b6d4';
-  const hoverColor = isText ? '#f472b6' : isMidi ? '#a78bfa' : isAudio ? '#b7e830' : '#22d3ee';
+  const hoverColor = isText ? '#f472b6' : isMidi ? '#cdf25e' : isAudio ? '#b7e830' : '#22d3ee';
   const isSelected = selectedTrackIds.includes(track.id);
   const minDuration = 0.05;
   const activeTrimStart = trimPreview?.previewTrimStart ?? track.trimStart;
@@ -444,7 +444,7 @@ export function TimelineTrackInner({
           />
         )}
 
-        {/* MIDI note preview */}
+        {/* MIDI note preview — tiled across loop repeats, with notch dividers */}
         {isMidi && (track as MidiTrack).notes.length > 0 && (() => {
           const notes = (track as MidiTrack).notes;
           let lo = Infinity, hi = -Infinity;
@@ -454,23 +454,48 @@ export function TimelineTrackInner({
           const padTop = 16, padBottom = 6;
           const usableH = Math.max(4, clipHeight - padTop - padBottom);
           const noteH = Math.max(1.5, Math.min(6, usableH / (range + 1)));
+          // One pattern length in px; when the clip is wider, it's looped.
+          const contentW = Math.max(1, beatsToSeconds(contentLengthBeats(notes), musical.bpm) * pixelsPerSecond);
+          const repeats = Math.max(1, Math.ceil(trimmedWidth / contentW));
+          const isLooped = trimmedWidth > contentW + 1;
+          const rects: React.ReactNode[] = [];
+          for (let k = 0; k < repeats; k++) {
+            const shift = k * contentW;
+            if (shift >= trimmedWidth) break;
+            for (const n of notes) {
+              const nx = shift + beatsToSeconds(n.startBeat, musical.bpm) * pixelsPerSecond;
+              if (nx > trimmedWidth) continue;
+              const nw = Math.max(1.5, beatsToSeconds(n.durationBeats, musical.bpm) * pixelsPerSecond);
+              const ny = padTop + (1 - (n.pitch - lo) / range) * usableH;
+              rects.push(
+                <Rect
+                  key={`${n.id}~${k}`}
+                  x={nx}
+                  y={ny}
+                  width={Math.min(nw, Math.max(0, trimmedWidth - nx))}
+                  height={noteH}
+                  fill="#f7ffe1"
+                  // Repeats are dimmed so the source pattern reads first.
+                  opacity={(k === 0 ? 0.35 : 0.22) + 0.55 * n.velocity}
+                  cornerRadius={1}
+                />
+              );
+            }
+          }
           return (
             <Group listening={false}>
-              {notes.map((n) => {
-                const nx = beatsToSeconds(n.startBeat, musical.bpm) * pixelsPerSecond;
-                const nw = Math.max(1.5, beatsToSeconds(n.durationBeats, musical.bpm) * pixelsPerSecond);
-                const ny = padTop + (1 - (n.pitch - lo) / range) * usableH;
-                if (nx > trimmedWidth) return null;
+              {rects}
+              {isLooped && Array.from({ length: repeats - 1 }, (_, i) => {
+                const lx = (i + 1) * contentW;
+                if (lx >= trimmedWidth) return null;
                 return (
-                  <Rect
-                    key={n.id}
-                    x={nx}
-                    y={ny}
-                    width={Math.min(nw, Math.max(0, trimmedWidth - nx))}
-                    height={noteH}
-                    fill="#f7ffe1"
-                    opacity={0.35 + 0.6 * n.velocity}
-                    cornerRadius={1}
+                  <Line
+                    key={`notch-${i}`}
+                    points={[lx, 0, lx, clipHeight]}
+                    stroke="#182605"
+                    strokeWidth={1}
+                    opacity={0.5}
+                    dash={[3, 3]}
                   />
                 );
               })}

@@ -85,6 +85,38 @@ export function notesActiveAt(notes: MidiNote[], beat: number): MidiNote[] {
   return notes.filter((n) => n.startBeat < beat && n.startBeat + n.durationBeats > beat);
 }
 
+/** The clip's played length in beats: `loopLengthBeats` when it exceeds the
+ *  content (the clip is looped), otherwise the plain content length. */
+export function midiPlayedLengthBeats(contentBeats: number, loopLengthBeats?: number | null): number {
+  return loopLengthBeats && loopLengthBeats > contentBeats + 1e-6 ? loopLengthBeats : contentBeats;
+}
+
+/**
+ * Repeat a pattern of `contentBeats` length so its notes tile back-to-back to
+ * fill `playedBeats` — the GarageBand "loop": the stored notes stay a single
+ * pattern; this expansion is what playback and export actually sound. Returns the
+ * original notes untouched when the clip isn't looped. The final repeat is
+ * trimmed so nothing rings past the loop's end.
+ */
+export function tileLoopedNotes(notes: MidiNote[], contentBeats: number, playedBeats: number): MidiNote[] {
+  if (notes.length === 0 || contentBeats <= 1e-6 || playedBeats <= contentBeats + 1e-6) {
+    return notes;
+  }
+  const out: MidiNote[] = [];
+  const repeats = Math.ceil(playedBeats / contentBeats);
+  for (let k = 0; k < repeats; k++) {
+    const shift = k * contentBeats;
+    for (const n of notes) {
+      const startBeat = n.startBeat + shift;
+      if (startBeat >= playedBeats - 1e-6) continue;
+      const durationBeats = Math.min(n.durationBeats, playedBeats - startBeat);
+      if (durationBeats <= 1e-6) continue;
+      out.push({ ...n, id: `${n.id}~${k}`, startBeat, durationBeats });
+    }
+  }
+  return out;
+}
+
 let noteCounter = 0;
 export function generateNoteId(): string {
   noteCounter += 1;

@@ -294,7 +294,7 @@ export function ExportModal() {
           activeMidiTracks.map(async (t) => ({
             id: t.id,
             file: await renderMidiTrackToFile(
-              { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume },
+              { id: t.id, name: t.name, instrumentId: t.instrumentId, notes: t.notes, transpose: t.transpose, volume: t.volume, loopLengthBeats: t.loopLengthBeats },
               musical.bpm
             ),
             offset: t.offset,
