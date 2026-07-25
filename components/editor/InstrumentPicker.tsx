@@ -23,6 +23,11 @@ import { InstrumentArt } from './InstrumentArt';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { useEditorStore } from '@/stores/editorStore';
 import { INSTRUMENTS, getInstrument } from '@/lib/midi/instruments';
+import { Fretboard, ChordPads, TUNINGS } from './PlaySurfaces';
+import {
+  type Chord, type ChordQuality, type StrumDirection,
+  chordSetForKey, chordLabel, NOTE_NAMES, QUALITY_GROUPS, QUALITY_LABEL,
+} from '@/lib/midi/chords';
 import { midiPlaybackEngine } from '@/lib/midi/playbackEngine';
 import { secondsToBeats, type MidiNote } from '@/lib/midi/noteUtils';
 import { AudioContextManager } from '@/lib/audio/audioContextManager';
@@ -196,6 +201,19 @@ export function InstrumentPicker() {
   const [metroOn, setMetroOn] = useState(true);
   const [quantizeOn, setQuantizeOn] = useState(true);
 
+  // Surface: fretted instruments open on their own neck, everything else on keys.
+  // Chords is available on any pitched instrument.
+  const [surface, setSurface] = useState<'keys' | 'fret' | 'chords'>('keys');
+  const [chordKey, setChordKey] = useState(0);          // tonic pitch-class
+  const [chordMinor, setChordMinor] = useState(false);
+  const [strumSpread, setStrumSpread] = useState(0.05); // seconds across the chord
+  const [strumDir, setStrumDir] = useState<StrumDirection>('down');
+  const [activeChord, setActiveChord] = useState<number | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customChords, setCustomChords] = useState<Chord[] | null>(null);
+  const [voicingHint, setVoicingHint] = useState<string | null>(null);
+  const chordHeldRef = useRef<{ pitches: number[]; offsets: number[]; startMs: number } | null>(null);
+
   const heldRef = useRef<Map<number, { startMs: number; vel: number }>>(new Map());
   const takeRef = useRef<MidiNote[]>([]);
   const recStartRef = useRef(0);
@@ -207,7 +225,18 @@ export function InstrumentPicker() {
 
   const def = selectedId ? getInstrument(selectedId) : null;
   const isDrum = def?.kind === 'drums';
+  const isBass = selectedId === 'bass-electric';
   const skin = selectedId ? skinFor(selectedId) : null;
+
+  // Pads default to the chords of the chosen key; a custom edit forks that set.
+  const activeChords: Chord[] = customChords ?? chordSetForKey(chordKey, chordMinor);
+  const [customTarget, setCustomTarget] = useState(0);
+  const editPad = useCallback((patch: Partial<Chord>) => {
+    setCustomChords((prev) => {
+      const base = prev ?? chordSetForKey(chordKey, chordMinor);
+      return base.map((c, i) => (i === customTarget ? { ...c, ...patch } : c));
+    });
+  }, [chordKey, chordMinor, customTarget]);
 
   const [rlo, rhi] = def?.defaultRange ?? [48, 72];
   const baseStart = Math.min(84, Math.max(24, Math.floor((rlo + rhi) / 2 / 12) * 12 - 12));
@@ -247,6 +276,47 @@ export function InstrumentPicker() {
     takeRef.current.push({ id: crypto.randomUUID(), pitch, startBeat, durationBeats, velocity: held.vel });
     setTakeCount(takeRef.current.length);
   }, [isDrum]);
+
+  /** A chord press sounds every tone with its strum offset and lights the pad. */
+  const chordDown = useCallback((index: number, pitches: number[], offsets: number[], voicingName: string) => {
+    if (!selectedId) return;
+    chordHeldRef.current = { pitches, offsets, startMs: performance.now() };
+    setActiveChord(index);
+    setVoicingHint(voicingName);
+    setLit(new Set(pitches));
+    pitches.forEach((p, i) => {
+      const delayMs = offsets[i] * 1000;
+      if (delayMs <= 0) midiPlaybackEngine.previewNote(selectedId, p, 0.85, 1.4).catch(() => {});
+      else window.setTimeout(() => midiPlaybackEngine.previewNote(selectedId, p, 0.85, 1.4).catch(() => {}), delayMs);
+    });
+  }, [selectedId]);
+
+  const chordUp = useCallback(() => {
+    const held = chordHeldRef.current;
+    chordHeldRef.current = null;
+    setActiveChord(null);
+    setLit(new Set());
+    if (!held || !isRecRef.current) return;
+    const b = bpmRef.current;
+    const heldSec = Math.max(0.12, (performance.now() - held.startMs) / 1000);
+    const base = (held.startMs - recStartRef.current) / 1000;
+    held.pitches.forEach((pitch, i) => {
+      // Each tone lands at the chord's start plus its own strum offset, so the
+      // recorded take keeps the strum instead of flattening to a block chord.
+      let startBeat = secondsToBeats(base + held.offsets[i], b);
+      if (startBeat < -0.06) return;
+      startBeat = Math.max(0, startBeat);
+      if (quantRef.current) startBeat = Math.round(startBeat / 0.25) * 0.25;
+      takeRef.current.push({
+        id: crypto.randomUUID(),
+        pitch,
+        startBeat,
+        durationBeats: Math.max(0.25, secondsToBeats(heldSec, b)),
+        velocity: 0.85,
+      });
+    });
+    setTakeCount(takeRef.current.length);
+  }, []);
 
   const startRecording = useCallback(() => {
     takeRef.current = [];
@@ -309,6 +379,14 @@ export function InstrumentPicker() {
   // isn't silent.
   useEffect(() => {
     if (selectedId) midiPlaybackEngine.preload([selectedId]).catch(() => {});
+  }, [selectedId]);
+
+  // Fretted instruments open on their own neck — a guitar shouldn't greet you
+  // with a piano keyboard. Everything else starts on keys.
+  useEffect(() => {
+    if (!selectedId) return;
+    setSurface(TUNINGS[selectedId] ? 'fret' : 'keys');
+    setCustomChords(null);
   }, [selectedId]);
 
   // Reset everything when the modal closes.
@@ -443,12 +521,156 @@ export function InstrumentPicker() {
               </div>
             </div>
 
+            {/* Surface switcher — a guitar opens on a neck, not a keyboard, and
+                any pitched instrument can switch to smart chords. */}
+            {!isDrum && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-950/60 px-5 py-2">
+                <div className="flex items-center gap-0.5 rounded-lg border border-zinc-800 bg-zinc-900/70 p-0.5">
+                  {([
+                    ...(TUNINGS[selectedId!] ? [{ id: 'fret' as const, label: isBass ? 'Bass' : 'Guitar' }] : []),
+                    { id: 'keys' as const, label: 'Keyboard' },
+                    { id: 'chords' as const, label: 'Chords' },
+                  ]).map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSurface(s.id)}
+                      aria-pressed={surface === s.id}
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        surface === s.id ? 'bg-signal-400 text-zinc-950' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+
+                {surface === 'chords' && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-zinc-500">Key</span>
+                      <select
+                        value={chordKey}
+                        onChange={(e) => { setChordKey(Number(e.target.value)); setCustomChords(null); }}
+                        className="rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-200"
+                      >
+                        {NOTE_NAMES.map((n, i) => <option key={n} value={i}>{n}</option>)}
+                      </select>
+                      <button
+                        onClick={() => { setChordMinor((v) => !v); setCustomChords(null); }}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-medium ${chordMinor ? 'border-signal-400/50 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}
+                      >
+                        {chordMinor ? 'minor' : 'major'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-zinc-500">Strum</span>
+                      {(['down', 'up', 'none'] as StrumDirection[]).map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setStrumDir(d)}
+                          className={`rounded-md border px-2 py-1 text-[11px] font-medium ${strumDir === d ? 'border-signal-400/50 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}
+                        >
+                          {d === 'down' ? '↓' : d === 'up' ? '↑' : 'block'}
+                        </button>
+                      ))}
+                      <input
+                        type="range" min={0} max={140} step={5}
+                        value={Math.round(strumSpread * 1000)}
+                        onChange={(e) => setStrumSpread(Number(e.target.value) / 1000)}
+                        className="h-1 w-20 cursor-pointer accent-signal-400"
+                        title={`Strum speed — ${Math.round(strumSpread * 1000)}ms across the chord`}
+                        aria-label="Strum speed"
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => setCustomOpen((v) => !v)}
+                      className={`ml-auto rounded-md border px-2.5 py-1 text-[11px] font-medium ${customOpen ? 'border-signal-400/50 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}`}
+                    >
+                      Custom chords
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Custom chord builder — replace any pad with any quality */}
+            {surface === 'chords' && customOpen && !isDrum && (
+              <div className="max-h-44 overflow-y-auto border-b border-zinc-800 bg-zinc-950/80 px-5 py-3 scrollbar-thin">
+                <p className="mb-2 text-[11px] text-zinc-500">
+                  Pick a pad, then a root and a quality. Changes apply to pad {(customTarget ?? 0) + 1}.
+                </p>
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {activeChords.map((c, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCustomTarget(i)}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${
+                        (customTarget ?? 0) === i ? 'border-signal-400 bg-signal-400/20 text-signal-200' : 'border-zinc-700 bg-zinc-900 text-zinc-300'
+                      }`}
+                    >
+                      {i + 1}. {chordLabel(c)}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {NOTE_NAMES.map((n, pc) => (
+                    <button
+                      key={n}
+                      onClick={() => editPad({ rootPc: pc })}
+                      className={`w-9 rounded border px-1 py-1 text-[11px] ${
+                        activeChords[customTarget ?? 0]?.rootPc === pc ? 'border-signal-400 bg-signal-400/20 text-signal-200' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {QUALITY_GROUPS.map((g) => (
+                  <div key={g.label} className="mb-1.5 flex flex-wrap items-center gap-1">
+                    <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-zinc-600">{g.label}</span>
+                    {g.items.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => editPad({ quality: q })}
+                        className={`rounded border px-1.5 py-1 text-[11px] ${
+                          activeChords[customTarget ?? 0]?.quality === q ? 'border-signal-400 bg-signal-400/20 text-signal-200' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {QUALITY_LABEL[q] || 'maj'}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="bg-[#0a0a0c] px-5 py-7">
-              {isDrum
-                ? <Pads lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
-                : <Keyboard startPitch={startPitch} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />}
+              {isDrum ? (
+                <Pads lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
+              ) : surface === 'chords' ? (
+                <ChordPads
+                  chords={activeChords}
+                  strumSpread={strumSpread}
+                  direction={strumDir}
+                  activeIndex={activeChord}
+                  onChordDown={chordDown}
+                  onChordUp={chordUp}
+                />
+              ) : surface === 'fret' && TUNINGS[selectedId!] ? (
+                <Fretboard tuning={TUNINGS[selectedId!]} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
+              ) : (
+                <Keyboard startPitch={startPitch} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
+              )}
               <div className="mt-3 text-center text-[11px] text-zinc-500">
-                {isDrum ? 'Tap the pads or press A · S · D · F · G · H' : 'Play with your mouse or the A–K row · Z / X shift octave'}
+                {isDrum
+                  ? 'Tap the pads or press A · S · D · F · G · H'
+                  : surface === 'chords'
+                    ? <>Press low on a pad for the bass note, higher for fuller inversions{voicingHint ? <> — <span className="text-signal-300">{voicingHint}</span></> : ''}</>
+                    : surface === 'fret'
+                      ? 'Click any fret to play it — standard tuning'
+                      : 'Play with your mouse or the A–K row · Z / X shift octave'}
               </div>
             </div>
 

@@ -1,3 +1,33 @@
+# MusicVid Pro — Status (July 25, 2026: fretboard + smart chords)
+
+## Round 13 (July 25): fretboard surfaces + GarageBand-style chord pads
+
+- **Chord engine** (`lib/midi/chords.ts`) — pure, so voicings are unit-tested
+  rather than eyeballed. 22 qualities (triads, 6ths, 7ths, extended incl.
+  add9/sus/dim/aug/alt), inversion by lifting the lowest note an octave, strum
+  offsets, and per-key pad sets. 12 tests.
+- **Fretboard** (`PlaySurfaces.tsx`) — guitar (EADGBE) and bass (EADG) in
+  standard tuning. Fret spacing uses the real 1/2^(n/12) rule, string gauges
+  taper. **Measured in-browser: consecutive fret widths ratio 1.0585–1.0604 vs
+  true equal temperament 1.0595.** Guitar/bass now OPEN on their own neck; a
+  Keyboard toggle switches back for recording, and Chords is available on any
+  pitched instrument.
+  - Bug caught by that measurement: the open-string cell had width 0 (the nut has
+    no width), so open strings were unplayable. Added a dedicated open-string
+    column left of the nut — now 32.3px and clickable.
+- **Chord pads** — 8 pads for the chosen key (major/minor), press position picks
+  the voicing. **Verified end-to-end in the built app:** pressing one pad at five
+  heights returns bass → root + 5th → root position → 1st inversion → 2nd
+  inversion. Strum ↓/↑/block with a speed slider (0–140ms), and a custom chord
+  builder to reassign any pad to any root × quality. Recorded takes keep the
+  strum (each tone lands at its own offset) instead of flattening to a block.
+
+Verify: tsc clean, suite 284/284, production build clean (`/editor` 183 kB), no
+console errors.
+
+Still open: concert/aux percussion + more mallets remain blocked on real samples
+(see Round 12) — deliberately deferred rather than faked with synths.
+
 # MusicVid Pro — Status (July 24, 2026: cycle-region loop, mode layout split)
 
 ## Round 12 (July 24): studio cards, real instrument art, cycle off by default
