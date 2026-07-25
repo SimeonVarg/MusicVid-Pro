@@ -147,7 +147,7 @@ export function TrackList() {
             <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">{menuTitles[activeMenu]}</p>
             <h3 className="truncate text-sm font-semibold text-zinc-100">{menuDescriptions[activeMenu]}</h3>
           </div>
-          <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400" title="Tracks in this project — manage them in the timeline">
+          <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400" title="Tracks in this project - manage them in the timeline">
             {allTracks.length}
           </span>
         </div>
@@ -183,7 +183,7 @@ export function TrackList() {
           <div className="mt-3 flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center">
             <Film className="mb-3 h-8 w-8 text-zinc-700" />
             <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
-            <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere — or use the buttons above</p>
+            <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere - or use the buttons above</p>
             <Button size="sm" className="mt-4" onClick={loadDemoProject} disabled={demoLoading}>
               {demoLoading ? 'Loading…' : 'Load demo project'}
             </Button>
@@ -192,7 +192,7 @@ export function TrackList() {
 
         {activeMenu === 'upload' && allTracks.length > 0 && (
           <p className="mt-3 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
-            Your tracks live in the timeline — each one lines up with its clips. Mute, solo, lock and volume are on the track header.
+            Your tracks live in the timeline - each one lines up with its clips. Mute, solo, lock and volume are on the track header.
           </p>
         )}
 

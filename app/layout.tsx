@@ -20,20 +20,20 @@ const display = Syne({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://music-vid-pro.vercel.app"),
-  title: "MusicVid Pro — Browser-Based Music Video Editor",
-  description: "Cut video like you play music. BPM detection, beat-grid snapping, time-stretch without pitch drift, color grading, and social export — an entire video editor in your browser, 100% client-side.",
+  title: "MusicVid Pro - Browser-Based Music Video Editor",
+  description: "Cut video like you play music. BPM detection, beat-grid snapping, time-stretch without pitch drift, color grading, and social export - an entire video editor in your browser, 100% client-side.",
   keywords: ["video editor", "music video", "BPM detection", "FFmpeg WASM", "browser video editor", "beat sync"],
   authors: [{ name: "Simeon Varghese" }],
   openGraph: {
-    title: "MusicVid Pro — Cut video like you play music",
-    description: "An entire music-video editor running in your browser. BPM sync, beat-grid cuts, color grading, titles, and social export — nothing leaves your device.",
+    title: "MusicVid Pro - Cut video like you play music",
+    description: "An entire music-video editor running in your browser. BPM sync, beat-grid cuts, color grading, titles, and social export - nothing leaves your device.",
     url: "https://music-vid-pro.vercel.app",
     siteName: "MusicVid Pro",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MusicVid Pro — Cut video like you play music",
+    title: "MusicVid Pro - Cut video like you play music",
     description: "An entire music-video editor in your browser. BPM sync, beat-grid cuts, color grading, titles, social export.",
   },
 };

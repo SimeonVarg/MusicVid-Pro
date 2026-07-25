@@ -74,7 +74,7 @@ export function ProjectManager({ open, onOpenChange }: { open: boolean; onOpenCh
         <DialogHeader>
           <DialogTitle>Your projects</DialogTitle>
           <DialogDescription className="text-zinc-400">
-            Everything is stored locally in your browser — nothing is uploaded.
+            Everything is stored locally in your browser - nothing is uploaded.
           </DialogDescription>
         </DialogHeader>
 

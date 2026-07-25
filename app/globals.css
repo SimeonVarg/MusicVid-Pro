@@ -143,3 +143,18 @@ audio {
   .mvp-playhead { animation: none; left: 50%; }
   .mvp-clip { animation: none; }
 }
+
+/* String vibration: a struck string oscillates and settles, so the motion is a
+   damped shimmy rather than a constant wobble. */
+@keyframes string-vibrate {
+  0%   { transform: translateY(-50%) scaleY(1); filter: blur(0px); }
+  12%  { transform: translateY(calc(-50% - 1.6px)) scaleY(1.9); filter: blur(0.7px); }
+  26%  { transform: translateY(calc(-50% + 1.4px)) scaleY(1.7); filter: blur(0.6px); }
+  44%  { transform: translateY(calc(-50% - 0.9px)) scaleY(1.45); filter: blur(0.4px); }
+  64%  { transform: translateY(calc(-50% + 0.6px)) scaleY(1.28); filter: blur(0.3px); }
+  84%  { transform: translateY(calc(-50% - 0.3px)) scaleY(1.12); filter: blur(0.15px); }
+  100% { transform: translateY(-50%) scaleY(1); filter: blur(0px); }
+}
+.string-vibrating {
+  animation: string-vibrate 0.62s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}

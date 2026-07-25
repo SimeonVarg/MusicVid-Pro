@@ -51,10 +51,10 @@ export function TutorialOverlay(): React.ReactElement | null {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
-      {/* ARIA live region — announces step changes to screen readers */}
+      {/* ARIA live region - announces step changes to screen readers */}
       {currentStep && (
         <span aria-live="polite" className="sr-only">
-          {currentStep.title} — {currentStep.module}
+          {currentStep.title} - {currentStep.module}
         </span>
       )}
 

@@ -47,7 +47,7 @@ function Keys() {
           />
         ))}
       </div>
-      {/* black keys — centred on the real semitone boundaries */}
+      {/* black keys - centred on the real semitone boundaries */}
       {BLACK_AFTER.map((i) => (
         <div
           key={i}
@@ -101,7 +101,7 @@ function Fretboard({ strings, wood, inlayAt = [2] }: { strings: number; wood: st
           }}
         />
       ))}
-      {/* strings — gauge tapers from wound low to plain high */}
+      {/* strings - gauge tapers from wound low to plain high */}
       {Array.from({ length: strings }).map((_, i) => {
         const t = i / (strings - 1);
         const gauge = 3.1 - 2.1 * t;
@@ -154,55 +154,68 @@ function SoundHole() {
 }
 
 function Violin() {
+  // Same discipline as the guitar neck: a precise fingerboard detail, not an
+  // attempt at a violin outline. Traced body shapes are what looked "mangled".
+  const strings = [0, 1, 2, 3];
   return (
-    <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg,#7d2f1f 0%,#541d13 45%,#31100a 100%)' }}>
-      {/* figured-maple sheen */}
-      <div className="absolute inset-0 opacity-30" style={{ background: 'repeating-linear-gradient(100deg,rgba(255,220,180,0.16) 0 3px,transparent 3px 9px)' }} />
-      {/* f-holes, mirrored — stacked rounded forms read cleaner than a traced path */}
-      {[28, 72].map((x) => (
-        <div key={x} className="absolute top-1/2 -translate-y-1/2" style={{ left: `${x}%` }}>
-          <div className="h-7 w-[3px] rounded-full bg-black/80" style={{ transform: 'rotate(9deg)' }} />
-          <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-black/80" />
-          <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-black/80" />
-        </div>
-      ))}
-      {/* bridge + strings */}
-      <div className="absolute left-1/2 top-1/2 h-[52%] w-[13%] -translate-x-1/2 -translate-y-1/2" style={{ background: 'linear-gradient(180deg,#d9b98a,#8a6a3f)', clipPath: 'polygon(12% 100%,88% 100%,72% 0,28% 0)' }} />
-      {Array.from({ length: 4 }).map((_, i) => (
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(155deg,#6d2a1b,#4a1a11 55%,#2b0e08)' }}>
+      {/* figured maple, very restrained */}
+      <div className="absolute inset-0 opacity-[0.14]" style={{ background: 'repeating-linear-gradient(96deg,#ffd9b0 0 2px,transparent 2px 11px)' }} />
+      {/* ebony fingerboard down the centre */}
+      <div className="absolute inset-y-0 left-1/2 w-[38%] -translate-x-1/2" style={{ background: 'linear-gradient(180deg,#1a1614,#0c0a09)', boxShadow: '0 0 18px rgba(0,0,0,0.55)' }} />
+      {/* four strings, gauge tapering across the set */}
+      {strings.map((i) => (
         <div
           key={i}
           className="absolute inset-y-0"
           style={{
-            left: `${42 + i * 5.4}%`,
-            width: 2.6 - i * 0.45,
-            background: 'linear-gradient(90deg,#f4f5f7,#a8aeb5)',
-            boxShadow: '1px 0 2px rgba(0,0,0,0.5)',
+            left: `${(50 - 13.5) + i * 9}%`,
+            width: 2.4 - i * 0.45,
+            background: 'linear-gradient(90deg,#f6f7f9,#aeb4ba)',
+            boxShadow: '1px 0 2px rgba(0,0,0,0.6)',
           }}
         />
       ))}
+      {/* bridge: a clean tapered block, symmetric */}
+      <div
+        className="absolute left-1/2 top-[62%] h-[16%] w-[52%] -translate-x-1/2"
+        style={{ background: 'linear-gradient(180deg,#e8cfa0,#a87f4a)', clipPath: 'polygon(6% 100%,94% 100%,74% 0,26% 0)' }}
+      />
     </div>
   );
 }
 
 function Sax() {
+  // Minimal brass: one body tube that curves into the bell, three pearl keys.
   return (
-    <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg,#3a2d0d 0%,#241b07 60%,#140f04 100%)' }}>
-      {/* brass body tube with specular highlight */}
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg,#2e2409,#1a1405 60%,#0e0b03)' }}>
       <div
-        className="absolute inset-y-[14%] left-[16%] w-[34%] rounded-full"
-        style={{ background: 'linear-gradient(100deg,#8a6c1c 0%,#e8c65a 28%,#fff3c0 40%,#d9b247 55%,#7d5f16 100%)', boxShadow: 'inset 0 0 8px rgba(0,0,0,0.45)' }}
+        className="absolute left-[34%] top-[12%] w-[16%]"
+        style={{
+          height: '58%',
+          background: 'linear-gradient(100deg,#7d5f16,#e8c65a 32%,#fff3c0 46%,#d9b247 62%,#6f5412)',
+          borderRadius: '4px 4px 0 0',
+        }}
       />
-      {/* bell flare */}
+      {/* the bow into the bell */}
       <div
-        className="absolute right-[10%] top-1/2 h-[74%] w-[30%] -translate-y-1/2"
-        style={{ background: 'linear-gradient(100deg,#7d5f16,#e8c65a 45%,#fff3c0 60%,#b8932f)', borderRadius: '46% 54% 54% 46% / 50% 50% 50% 50%', boxShadow: 'inset -3px 0 8px rgba(0,0,0,0.4)' }}
+        className="absolute left-[34%] top-[62%] h-[26%] w-[42%]"
+        style={{
+          background: 'linear-gradient(100deg,#7d5f16,#e8c65a 32%,#fff3c0 46%,#d9b247 62%,#6f5412)',
+          borderRadius: '0 0 0 999px',
+          clipPath: 'polygon(0 0,100% 0,100% 34%,34% 34%,34% 100%,0 100%)',
+        }}
       />
-      {/* mother-of-pearl keys */}
-      {[26, 44, 62].map((t, i) => (
+      <div
+        className="absolute right-[12%] top-[54%] h-[22%] w-[22%]"
+        style={{ background: 'linear-gradient(100deg,#6f5412,#e8c65a 40%,#fff3c0 58%,#b8932f)', borderRadius: '50% 50% 46% 46% / 60% 60% 40% 40%' }}
+      />
+      {/* pearl keys, evenly spaced on the tube */}
+      {[20, 34, 48].map((t) => (
         <div
-          key={i}
-          className="absolute left-[30%] h-[15%] w-[9%] rounded-full"
-          style={{ top: `${t}%`, background: 'radial-gradient(circle at 35% 28%,#fffefa,#e7e2d2 55%,#b9b2a0)', boxShadow: '0 1px 2px rgba(0,0,0,0.55), inset 0 0 2px rgba(0,0,0,0.2)' }}
+          key={t}
+          className="absolute left-[42%] h-[8%] w-[8%] -translate-x-1/2 rounded-full"
+          style={{ top: `${t}%`, background: 'radial-gradient(circle at 34% 28%,#fffefa,#e6e1d1 58%,#b5ae9c)', boxShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
         />
       ))}
     </div>
@@ -210,54 +223,74 @@ function Sax() {
 }
 
 function MalletBars() {
-  const BARS = 8;
+  // Graduated rosewood bars on two rails. Natural timber, not primary colours,
+  // which is what made the old one read as a toy.
+  const BARS = 11;
   return (
-    <div className="absolute inset-0 flex items-center justify-center gap-[3px] px-3" style={{ background: 'linear-gradient(180deg,#1b1a17,#0d0c0a)' }}>
-      {/* rails */}
-      <div className="absolute inset-x-2 top-[26%] h-[2px] rounded bg-gradient-to-r from-transparent via-zinc-500/50 to-transparent" />
-      <div className="absolute inset-x-2 bottom-[26%] h-[2px] rounded bg-gradient-to-r from-transparent via-zinc-500/50 to-transparent" />
-      {Array.from({ length: BARS }).map((_, i) => {
-        const t = i / (BARS - 1);
-        const h = 78 - t * 30;           // graduated bar length, low → high
-        return (
-          <div
-            key={i}
-            className="relative flex-1 rounded-[2px]"
-            style={{
-              height: `${h}%`,
-              background: 'linear-gradient(180deg,#a9713c 0%,#8a5628 45%,#5f3a19 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,220,180,0.35), 0 2px 3px rgba(0,0,0,0.5)',
-            }}
-          >
-            {/* cord holes */}
-            <div className="absolute left-1/2 top-[22%] h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-black/60" />
-            <div className="absolute bottom-[22%] left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-black/60" />
-          </div>
-        );
-      })}
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,#15120f,#0a0806)' }}>
+      <div className="absolute inset-x-[6%] top-[24%] h-px bg-zinc-500/30" />
+      <div className="absolute inset-x-[6%] bottom-[24%] h-px bg-zinc-500/30" />
+      <div className="absolute inset-x-[6%] inset-y-0 flex items-center gap-[2px]">
+        {Array.from({ length: BARS }).map((_, i) => {
+          const t = i / (BARS - 1);
+          return (
+            <div
+              key={i}
+              className="relative flex-1"
+              style={{
+                height: `${72 - t * 26}%`,
+                background: 'linear-gradient(180deg,#9c6a3a,#7d5228 48%,#54361a)',
+                boxShadow: 'inset 0 1px 0 rgba(255,214,170,0.28), 0 1px 2px rgba(0,0,0,0.55)',
+                borderRadius: 1,
+              }}
+            >
+              <div className="absolute left-1/2 top-[18%] h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/50" />
+              <div className="absolute bottom-[18%] left-1/2 h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/50" />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function DrumKit() {
-  const head = (size: string, left: string, top: string, tone: string) => (
-    <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: size, height: size, left, top, background: tone, boxShadow: '0 3px 6px rgba(0,0,0,0.55)' }}>
-      <div className="absolute inset-[14%] rounded-full" style={{ background: 'radial-gradient(circle at 34% 28%,rgba(255,255,255,0.28),rgba(255,255,255,0.05) 55%,rgba(0,0,0,0.25))' }} />
+  // Plan view on a symmetric grid: warm calf-coloured heads and wood hoops so it
+  // reads acoustic, not electronic. Flat and exact rather than rendered.
+  const drum = (cx: number, cy: number, d: number, hoop: string) => (
+    <div
+      className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{
+        left: `${cx}%`, top: `${cy}%`, width: `${d}%`, aspectRatio: '1',
+        background: '#efe6d2',
+        border: `2px solid ${hoop}`,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+      }}
+    >
+      <div className="absolute inset-[18%] rounded-full border border-black/10" />
+    </div>
+  );
+  const cymbal = (cx: number, cy: number, d: number) => (
+    <div
+      className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{
+        left: `${cx}%`, top: `${cy}%`, width: `${d}%`, aspectRatio: '1',
+        background: '#c9a63f',
+        boxShadow: '0 2px 5px rgba(0,0,0,0.5)',
+      }}
+    >
+      <div className="absolute inset-[30%] rounded-full border border-black/20" />
+      <div className="absolute inset-[46%] rounded-full bg-black/25" />
     </div>
   );
   return (
-    <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 90% at 50% 20%,#2b2b31,#111114 70%)' }}>
-      {/* cymbal */}
-      <div
-        className="absolute left-[19%] top-[32%] h-[34%] w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: 'radial-gradient(circle at 45% 45%,#f0d98a,#b9922f 45%,#7d6118 75%,#4d3c0d)', boxShadow: '0 2px 5px rgba(0,0,0,0.6)' }}
-      />
-      {/* kick (large), snare, tom */}
-      {head('54%', '58%', '62%', 'radial-gradient(circle at 38% 30%,#f5f3ee,#cfcabd 55%,#8f8a7d)')}
-      {head('30%', '24%', '74%', 'radial-gradient(circle at 38% 30%,#f7f5f0,#d6d1c4 55%,#96917f)')}
-      {head('26%', '84%', '34%', 'radial-gradient(circle at 38% 30%,#f2efe8,#cbc5b6 55%,#8d8878)')}
-      {/* rim glints */}
-      <div className="absolute left-[58%] top-[62%] h-[54%] w-[54%] -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-zinc-300/25" />
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,#241a14,#140e0a)' }}>
+      {cymbal(15, 30, 26)}
+      {cymbal(85, 30, 22)}
+      {drum(35, 26, 24, '#6b4526')}
+      {drum(62, 25, 22, '#6b4526')}
+      {drum(50, 66, 40, '#6b4526')}
+      {drum(15, 70, 24, '#8a8f96')}
     </div>
   );
 }

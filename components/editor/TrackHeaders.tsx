@@ -83,7 +83,7 @@ function HeaderRow({
       }`}
       style={{ top: trackRowTop(index, trackHeight, 0), height: trackHeight }}
     >
-      {/* Type colour spine — ties the header to its lane's clip colour */}
+      {/* Type colour spine - ties the header to its lane's clip colour */}
       <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: meta.bar, opacity: selected ? 1 : 0.55 }} />
 
       <div className="flex h-full flex-col justify-center gap-1.5 py-1.5">
@@ -111,7 +111,7 @@ function HeaderRow({
             {audioTools && track.type !== 'text' && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleTrackSolo(track.id); }}
-                title={track.isSoloed ? 'Unsolo' : 'Solo — silences every other track'}
+                title={track.isSoloed ? 'Unsolo' : 'Solo - silences every other track'}
                 className={`flex h-[18px] w-[18px] items-center justify-center rounded border text-[9px] font-bold transition-colors ${
                   track.isSoloed ? 'border-amber-400/60 bg-amber-400/20 text-amber-300' : 'border-zinc-700 bg-zinc-800/80 text-zinc-400 hover:bg-zinc-700'
                 }`}
@@ -174,7 +174,7 @@ export function TrackHeaders({
       style={{ width }}
       onWheel={onWheel}
     >
-      {/* Ruler-height cap — keeps row 0 level with lane 0 */}
+      {/* Ruler-height cap - keeps row 0 level with lane 0 */}
       <div
         className="flex shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/80 px-2.5"
         style={{ height: RULER_HEIGHT }}
@@ -183,7 +183,7 @@ export function TrackHeaders({
         {audioTools && (
           <button
             onClick={() => setInstrumentPickerOpen(true)}
-            title="Add instrument — open the studio"
+            title="Add instrument - open the studio"
             className="rounded border border-zinc-700 bg-zinc-800/80 px-1.5 py-0.5 text-[11px] font-bold leading-none text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
           >
             +
@@ -191,7 +191,7 @@ export function TrackHeaders({
         )}
       </div>
 
-      {/* Rows viewport — scrolls in lock-step with the canvas */}
+      {/* Rows viewport - scrolls in lock-step with the canvas */}
       <div className="relative overflow-hidden" style={{ height: viewportHeight }}>
         <div className="absolute inset-x-0 top-0" style={{ transform: `translateY(${-verticalScroll}px)` }}>
           {tracks.map((track, index) => (
@@ -205,7 +205,7 @@ export function TrackHeaders({
             />
           ))}
         </div>
-        {/* New-track button, directly under the last row — the natural place to
+        {/* New-track button, directly under the last row - the natural place to
             reach for it now that headers stack vertically with the lanes. */}
         <button
           onClick={() => setInstrumentPickerOpen(true)}

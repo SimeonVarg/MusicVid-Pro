@@ -11,7 +11,7 @@
  *    voicing — low = bass note, high = fuller, higher inversions — and strum
  *    spreads the notes in time.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   type Chord,
   type ChordQuality,
@@ -54,13 +54,21 @@ export function Fretboard({
 }) {
   const pos = useMemo(() => fretPositions(FRET_COUNT), []);
   const strings = [...tuning].reverse(); // draw high string at the top
+  // Bumping a string's counter remounts its element, which restarts the damped
+  // vibration animation - so re-striking the same string re-triggers it.
+  const [strikes, setStrikes] = useState<number[]>(() => strings.map(() => 0));
+  const strike = (si: number) => setStrikes((prev) => {
+    const next = prev.length === strings.length ? [...prev] : strings.map(() => 0);
+    next[si] = (next[si] ?? 0) + 1;
+    return next;
+  });
 
   return (
     <div
       className="relative mx-auto w-full max-w-4xl select-none overflow-hidden rounded-lg ring-1 ring-black/70"
       style={{ height: 44 + strings.length * 26, background: 'linear-gradient(175deg,#3a2413,#22150a 60%,#150d05)', touchAction: 'none' }}
     >
-      {/* open-string strip, then the nut. Fret 0 needs real estate of its own —
+      {/* open-string strip, then the nut. Fret 0 needs real estate of its own -
           the nut has no width, so without this column open strings are unplayable. */}
       <div className="absolute inset-y-0 left-0" style={{ width: OPEN_W, background: 'linear-gradient(180deg,#191007,#0d0803)' }} />
       <div className="absolute inset-y-0" style={{ left: OPEN_W, width: 6, background: 'linear-gradient(90deg,#efe6d2,#b9ad93)' }} />
@@ -94,7 +102,8 @@ export function Fretboard({
         return (
           <React.Fragment key={si}>
             <div
-              className="pointer-events-none absolute inset-x-0"
+              key={`str-${si}-${strikes[si] ?? 0}`}
+              className={`pointer-events-none absolute inset-x-0 ${strikes[si] ? 'string-vibrating' : ''}`}
               style={{
                 top: y, height: gauge, transform: 'translateY(-50%)',
                 background: si > strings.length - 3
@@ -114,10 +123,10 @@ export function Fretboard({
               return (
                 <button
                   key={f}
-                  onMouseDown={(e) => { e.preventDefault(); onDown(pitch); }}
+                  onMouseDown={(e) => { e.preventDefault(); strike(si); onDown(pitch); }}
                   onMouseUp={() => onUp(pitch)}
                   onMouseLeave={() => onUp(pitch)}
-                  onTouchStart={(e) => { e.preventDefault(); onDown(pitch); }}
+                  onTouchStart={(e) => { e.preventDefault(); strike(si); onDown(pitch); }}
                   onTouchEnd={(e) => { e.preventDefault(); onUp(pitch); }}
                   className="absolute cursor-pointer"
                   style={{ ...box, top: y - 13, height: 26 }}
@@ -199,7 +208,7 @@ export function ChordPads({
               boxShadow: on ? '0 0 22px rgba(163,217,36,0.45)' : 'inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 14px rgba(0,0,0,0.4)',
             }}
           >
-            {/* voicing bands — a visual hint that height changes the voicing */}
+            {/* voicing bands - a visual hint that height changes the voicing */}
             <div className="pointer-events-none absolute inset-0 flex flex-col">
               {[0.20, 0.20, 0.22, 0.20, 0.18].map((h, b) => (
                 <div key={b} className="w-full border-b border-white/[0.05] last:border-b-0" style={{ height: `${h * 100}%` }} />

@@ -122,7 +122,7 @@ export function ExportModal() {
       if (activeAudioTracks.length === 0) {
         errors.push(
           hasMidiAudio
-            ? 'Audio-only export does not include instrument tracks yet — use video export for MIDI.'
+            ? 'Audio-only export does not include instrument tracks yet - use video export for MIDI.'
             : 'No audio tracks available for audio-only export.'
         );
       }
@@ -440,7 +440,7 @@ export function ExportModal() {
         <DialogHeader className="pb-1">
           <DialogTitle className="text-xl font-bold">Export Project</DialogTitle>
           <DialogDescription className="text-zinc-400 text-sm">
-            Configure format, platform, and quality — then export.
+            Configure format, platform, and quality - then export.
           </DialogDescription>
         </DialogHeader>
 
@@ -593,7 +593,7 @@ export function ExportModal() {
           </div>
         </div>
 
-        {/* Progress bar — shown during export */}
+        {/* Progress bar - shown during export */}
         {isExporting && (
           <div className="border-t border-zinc-800 pt-4 space-y-2">
             <div className="flex items-center justify-between text-sm">

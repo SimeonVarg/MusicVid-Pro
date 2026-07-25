@@ -10,6 +10,7 @@ import type { MidiNote } from './noteUtils';
 import { beatsToSeconds, clampPitch } from './noteUtils';
 import { createVoice, loadInstrumentBuffers, type MidiVoice } from './toneInstruments';
 
+
 const clampPan = (p: number | undefined) => Math.max(-1, Math.min(1, p || 0));
 
 export interface PlayableMidiTrack {
@@ -98,6 +99,45 @@ class MidiPlaybackEngine {
       try { panner.dispose(); } catch { /* ignore */ }
     }
     this.active.clear();
+  }
+
+  // Live-play voices, one per instrument, kept alive so a held key sustains.
+  private liveVoices = new Map<string, MidiVoice>();
+
+  private async liveVoice(instrumentId: string): Promise<MidiVoice> {
+    const Tone = await ensureTone();
+    await loadInstrumentBuffers(instrumentId);
+    if (!this.started) { await Tone.start(); this.started = true; }
+    let v = this.liveVoices.get(instrumentId);
+    if (!v) { v = createVoice(instrumentId); this.liveVoices.set(instrumentId, v); }
+    return v;
+  }
+
+  /**
+   * Press a note and HOLD it. The note rings until noteUp, so a sustaining
+   * instrument keeps sounding while the key is down and a short tap stops short.
+   * Percussion has no meaningful sustain, so it falls back to a one-shot.
+   */
+  async noteDown(instrumentId: string, pitch: number, velocity = 0.85): Promise<void> {
+    const voice = await this.liveVoice(instrumentId);
+    if (voice.attack) voice.attack(clampPitch(pitch), velocity);
+    else {
+      const Tone = await ensureTone();
+      voice.trigger(clampPitch(pitch), Tone.now() + 0.02, 0.6, velocity);
+    }
+  }
+
+  async noteUp(instrumentId: string, pitch: number): Promise<void> {
+    const voice = this.liveVoices.get(instrumentId);
+    voice?.release?.(clampPitch(pitch));
+  }
+
+  /** Drop live voices (closing the studio) so nothing is left ringing. */
+  releaseAllLive(): void {
+    for (const v of this.liveVoices.values()) {
+      try { v.dispose(); } catch { /* ignore */ }
+    }
+    this.liveVoices.clear();
   }
 
   /** Audition a single note now (piano-roll interaction feedback). */

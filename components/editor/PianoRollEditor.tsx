@@ -501,7 +501,7 @@ export function PianoRollEditor() {
               // the transport cycle, NOT the clip loop that repeats the notes — that
               // one lives on the timeline clip's right edge).
               onClick={() => setLoop(loop ? null : { start: trackOffset, end: trackOffset + track.duration })}
-              title={loop ? 'Cycle on — playback repeats this clip. Click to turn off.' : 'Cycle playback over this clip while editing'}
+              title={loop ? 'Cycle on - playback repeats this clip. Click to turn off.' : 'Cycle playback over this clip while editing'}
               className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 loop ? 'border-signal-400/60 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
               }`}>

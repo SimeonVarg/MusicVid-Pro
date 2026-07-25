@@ -24,7 +24,7 @@ const features = [
     icon: Zap,
     title: 'Time-Stretch & Pitch-Shift',
     description:
-      'Change tempo without affecting pitch — or shift pitch without changing speed. Powered by FFmpeg WASM and Rubber Band.',
+      'Change tempo without affecting pitch - or shift pitch without changing speed. Powered by FFmpeg WASM and Rubber Band.',
   },
   {
     icon: Video,
@@ -101,7 +101,7 @@ export default function Home() {
 
       {/* Hero */}
       <section className="relative overflow-hidden px-6 pb-24 pt-24">
-        {/* Faint signal wash, top-left biased — not a centered halo */}
+        {/* Faint signal wash, top-left biased - not a centered halo */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -top-40 left-[10%] h-[420px] w-[680px] rounded-full bg-signal-500/[0.07] blur-[110px]" />
         </div>
@@ -109,7 +109,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-4xl">
           <div className="mb-8 inline-flex items-center gap-2.5 border border-signal-400/25 bg-signal-400/[0.06] px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-signal-300">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal-400" />
-            100% client-side — nothing leaves your device
+            100% client-side - nothing leaves your device
           </div>
 
           <h1 className="mb-7 font-display text-5xl font-extrabold leading-[1.04] tracking-tight md:text-7xl">
@@ -120,7 +120,7 @@ export default function Home() {
 
           <p className="mb-10 max-w-2xl text-lg leading-relaxed text-zinc-400">
             MusicVid Pro locks your edit to the beat grid: detect BPM, snap cuts to the groove,
-            time-stretch without pitch drift, and export straight to social — an entire video
+            time-stretch without pitch drift, and export straight to social - an entire video
             editor running in the browser.
           </p>
 
@@ -130,7 +130,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 rounded-md bg-signal-400 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-signal-300"
             >
               <Zap className="h-5 w-5" />
-              Launch Editor — it&apos;s free
+              Launch Editor - it&apos;s free
             </Link>
             <a
               href="https://github.com/SimeonVarg/MusicVid-Pro"
@@ -149,7 +149,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features — ruled spec-sheet grid, not cards */}
+      {/* Features - ruled spec-sheet grid, not cards */}
       <section className="px-6 pb-24">
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 flex items-end justify-between border-b border-zinc-800 pb-5">
@@ -193,7 +193,7 @@ export default function Home() {
                 Your files never leave your device
               </h2>
               <p className="max-w-2xl text-zinc-400">
-                All processing — FFmpeg encoding, BPM detection, waveform generation — happens in
+                All processing - FFmpeg encoding, BPM detection, waveform generation - happens in
                 your browser using WebAssembly and the Web Audio API. Projects are saved to
                 IndexedDB locally. Zero server uploads.
               </p>

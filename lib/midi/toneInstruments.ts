@@ -79,6 +79,11 @@ export function loadInstrumentBuffers(instrumentId: string): Promise<Record<stri
 export interface MidiVoice {
   /** Schedule one note. time/duration in SECONDS in the active Tone context. */
   trigger(pitch: number, time: number, durationSec: number, velocity: number): void;
+  /** Start a note and hold it until `release` — used for live play, where the
+   *  note must ring exactly as long as the key is held (a sustaining synth
+   *  shouldn't cut off at a fixed length, and a short tap must stop short). */
+  attack?(pitch: number, velocity: number): void;
+  release?(pitch: number): void;
   connect(node: unknown): void;
   dispose(): void;
 }
@@ -109,6 +114,8 @@ export function createVoice(instrumentId: string): MidiVoice {
     return {
       trigger: (pitch, time, durationSec, velocity) =>
         poly.triggerAttackRelease(pitchToName(pitch), Math.max(0.05, durationSec), time, velocity),
+      attack: (pitch, velocity) => poly.triggerAttack(pitchToName(pitch), undefined, velocity),
+      release: (pitch) => poly.triggerRelease(pitchToName(pitch)),
       connect: (node) => poly.connect(node as never),
       dispose: () => poly.dispose(),
     };
@@ -143,6 +150,8 @@ export function createVoice(instrumentId: string): MidiVoice {
   return {
     trigger: (pitch, time, durationSec, velocity) =>
       sampler.triggerAttackRelease(pitchToName(pitch), Math.max(0.05, durationSec), time, velocity),
+    attack: (pitch, velocity) => sampler.triggerAttack(pitchToName(pitch), undefined, velocity),
+    release: (pitch) => sampler.triggerRelease(pitchToName(pitch)),
     connect: (node) => sampler.connect(node as never),
     dispose: () => sampler.dispose(),
   };

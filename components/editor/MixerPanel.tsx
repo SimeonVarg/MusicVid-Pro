@@ -85,7 +85,7 @@ function ChannelStrip({ channel, anySoloed }: { channel: MixerChannel; anySoloed
         </button>
         <button
           onClick={() => toggleTrackSolo(channel.id)}
-          title={channel.isSoloed ? 'Unsolo' : 'Solo — silences every other track'}
+          title={channel.isSoloed ? 'Unsolo' : 'Solo - silences every other track'}
           className={`flex h-6 w-6 items-center justify-center rounded border text-[10px] font-bold transition-colors ${
             channel.isSoloed ? 'border-amber-400/60 bg-amber-400/20 text-amber-300' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
           }`}
@@ -117,7 +117,7 @@ export function MixerPanel() {
 
         <div className="mt-2 flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
           {channels.length === 0 && (
-            <p className="py-8 text-center text-sm text-zinc-500">No tracks yet — add a video, audio, or instrument track first.</p>
+            <p className="py-8 text-center text-sm text-zinc-500">No tracks yet - add a video, audio, or instrument track first.</p>
           )}
           {channels.map((c) => (
             <ChannelStrip key={c.id} channel={c} anySoloed={anySoloed} />

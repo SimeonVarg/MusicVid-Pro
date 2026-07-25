@@ -89,7 +89,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
     const video = targetId ? videoRefs.current[targetId] : null;
     if (!video || !video.videoWidth) {
       useEditorStore.setState({
-        lastError: 'No video frame to capture — add a video and move the playhead over it.',
+        lastError: 'No video frame to capture - add a video and move the playhead over it.',
       });
       return;
     }
@@ -338,7 +338,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         if (items.length > 0) previewMenu.open(e, items);
       }}
     >
-      {/* Preview tools — shown on hover. Composition guides + frame snapshot are
+      {/* Preview tools - shown on hover. Composition guides + frame snapshot are
           video-only craft tools; hidden in Beats mode to keep the surface small. */}
       <div className={`absolute right-2 top-2 z-20 flex gap-1 opacity-0 transition-opacity [.relative:hover_&]:opacity-100 ${videoTools ? '' : 'hidden'}`}>
         <button
@@ -370,7 +370,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
         )}
       </div>
 
-      {/* Composition guides — rule of thirds, center cross, action-safe area */}
+      {/* Composition guides - rule of thirds, center cross, action-safe area */}
       {showGuides && (
         <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
           <div className="absolute inset-y-0 left-1/3 w-px bg-white/25" />

@@ -329,6 +329,7 @@ export interface EditorState {
   setCurrentTime: (time: number) => void;
   addTimelineMarker: (time?: number) => void;
   removeTimelineMarker: (time?: number) => void;
+  clearTimelineMarkers: () => void;
   jumpToPreviousMarker: () => void;
   jumpToNextMarker: () => void;
   setBPM: (bpm: number) => void;
@@ -1255,6 +1256,11 @@ export const useEditorStore = create<EditorState>()(
             }
             state.timelineMarkers.splice(nearestIdx, 1);
           });
+        },
+
+        clearTimelineMarkers: () => {
+          pushHistory(get());
+          set((state) => { state.timelineMarkers = []; });
         },
 
         jumpToPreviousMarker: () => {
@@ -2276,11 +2282,14 @@ export const useEditorStore = create<EditorState>()(
         name: 'music-video-editor',
         partialize: (state) => ({
           musical: state.musical,
-          timelineMarkers: state.timelineMarkers,
           timeDisplayMode: state.timeDisplayMode,
           // Tracks are never persisted, so a restored duration/scroll would
-          // render a stale empty timeline after reload.
-          timeline: { ...state.timeline, isPlaying: false, currentTime: 0, duration: 0, scrollX: 0 },
+          // render a stale empty timeline after reload. Markers and the cycle
+          // region belong to a PROJECT (saveProject), not to the browser: keeping
+          // them here resurrected a loop band and markers over an empty timeline
+          // that no reload could clear.
+          timelineMarkers: [],
+          timeline: { ...state.timeline, isPlaying: false, currentTime: 0, duration: 0, scrollX: 0, loop: null },
           exportSettings: state.exportSettings,
           pitchEngine: state.pitchEngine,
         }),

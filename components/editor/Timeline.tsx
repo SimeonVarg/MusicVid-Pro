@@ -19,7 +19,7 @@ import {
   trackRowTop,
 } from '@/lib/utils/timelineLayout';
 import { ContextMenu, useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
-import { Copy, ClipboardPaste, CopyPlus, Scissors, Volume2, VolumeX, Lock, Unlock, Trash2, Music, Plus, Type, MapPin, AudioLines } from 'lucide-react';
+import { Copy, ClipboardPaste, CopyPlus, Scissors, Volume2, VolumeX, Lock, Unlock, Trash2, Music, Plus, Type, MapPin, AudioLines, Repeat } from 'lucide-react';
 
 export function Timeline() {
   const stageRef = useRef<any>(null);
@@ -52,6 +52,8 @@ export function Timeline() {
     clipboardTrack,
     setCurrentTime,
     addTimelineMarker,
+    removeTimelineMarker,
+    clearTimelineMarkers,
     setSelectedTrackIds,
     setZoom,
     setScrollX,
@@ -351,12 +353,27 @@ export function Timeline() {
   };
 
   const buildBgMenu = (time: number): MenuItem[] => [
+    // Cycle + markers are togglable right where they appear, so anything the
+    // ruler shows can be turned off from the ruler itself.
+    {
+      label: timeline.loop ? 'Turn cycle off' : 'Cycle over this region',
+      icon: Repeat,
+      onSelect: () => {
+        if (timeline.loop) { setLoop(null); return; }
+        const twoBars = (musical.timeSignature.numerator * 2 * 60) / musical.bpm;
+        const start = Math.max(0, time);
+        setLoop({ start, end: start + twoBars });
+      },
+    },
+    { type: 'separator' },
     { type: 'label', label: 'Add track' },
     { label: 'Instrument (MIDI)', icon: Music, onSelect: () => setInstrumentPickerOpen(true) },
     { label: 'Text clip', icon: Type, onSelect: () => addTextTrack('New text') },
     { type: 'separator' },
     { label: 'Paste here', icon: ClipboardPaste, disabled: !clipboardTrack, onSelect: () => pasteTrack('', Math.max(0, time)) },
     { label: 'Add marker here', icon: MapPin, onSelect: () => addTimelineMarker(Math.max(0, time)) },
+    { label: 'Remove marker here', icon: MapPin, disabled: timelineMarkers.length === 0, onSelect: () => removeTimelineMarker(Math.max(0, time)) },
+    { label: 'Clear all markers', icon: Trash2, danger: true, disabled: timelineMarkers.length === 0, onSelect: () => clearTimelineMarkers() },
   ];
 
   const handleStageContextMenu = (e: any) => {
@@ -520,7 +537,7 @@ export function Timeline() {
             </Group>
           </Group>
 
-          {/* Cycle (loop) region — the visible, draggable loop band + track tint */}
+          {/* Cycle (loop) region - the visible, draggable loop band + track tint */}
           <CycleRegion
             loop={timeline.loop}
             pixelsPerSecond={PIXELS_PER_SECOND}

@@ -88,7 +88,7 @@ export default function EditorPage() {
         await addAudioTrack(file);
       } else {
         useEditorStore.setState({
-          lastError: `"${file.name}" isn't a supported file — try MP4, MOV, MP3, WAV, or MID.`,
+          lastError: `"${file.name}" isn't a supported file - try MP4, MOV, MP3, WAV, or MID.`,
         });
       }
     }
@@ -195,7 +195,7 @@ export default function EditorPage() {
           {/* ── Main area ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* Preview pane — hidden entirely in Beats (DAW) mode */}
+            {/* Preview pane - hidden entirely in Beats (DAW) mode */}
             {showPreviewPane && (
               <>
                 {!previewDetached ? (
@@ -226,7 +226,7 @@ export default function EditorPage() {
               </>
             )}
 
-            {/* Timeline pane — the arrangement. Fills the workspace in Beats mode. */}
+            {/* Timeline pane - the arrangement. Fills the workspace in Beats mode. */}
             <div className="min-h-0 flex-1 overflow-hidden bg-zinc-900">
               <Timeline />
             </div>

@@ -114,13 +114,13 @@ export function Toolbar() {
 
           <Separator orientation="vertical" className="h-7" />
 
-          {/* Mode switcher — the primary "what am I making?" control. Each mode
+          {/* Mode switcher - the primary "what am I making?" control. Each mode
               hides the tooling the other doesn't need, so the surface stays small. */}
           <div data-tutorial="toolbar-mode" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-zinc-800 bg-zinc-950/60 p-0.5">
             {([
-              { id: 'video', label: 'Video', icon: Film, hint: 'Video editor — cut, grade, title. No instruments or mixer.' },
-              { id: 'daw', label: 'Beats', icon: Piano, hint: 'DAW — instruments, piano roll, mixer, click track.' },
-              { id: 'hybrid', label: 'Both', icon: Blend, hint: 'Music video — write the beat and cut the video together.' },
+              { id: 'video', label: 'Video', icon: Film, hint: 'Video editor - cut, grade, title. No instruments or mixer.' },
+              { id: 'daw', label: 'Beats', icon: Piano, hint: 'DAW - instruments, piano roll, mixer, click track.' },
+              { id: 'hybrid', label: 'Both', icon: Blend, hint: 'Music video - write the beat and cut the video together.' },
             ] as { id: EditorMode; label: string; icon: typeof Film; hint: string }[]).map((m) => {
               const Icon = m.icon;
               const active = mode === m.id;
@@ -184,45 +184,11 @@ export function Toolbar() {
               <SkipForward className="h-3.5 w-3.5" />
             </Button>
 
-            {audioTools && (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-pressed={!!timeline.loop}
-                className={`h-8 gap-1.5 px-2 ${
-                  timeline.loop
-                    ? 'bg-signal-400/15 text-signal-300 ring-1 ring-signal-400/50 hover:bg-signal-400/20'
-                    : 'text-zinc-400'
-                }`}
-                title={
-                  timeline.loop
-                    ? 'Cycle ON — playback repeats the highlighted region. Click to turn off.'
-                    : selectedRegion && selectedRegion.end > selectedRegion.start
-                      ? 'Cycle OFF — click to repeat playback over the selected region'
-                      : 'Cycle OFF — click to repeat playback over a region'
-                }
-                onClick={() => {
-                  if (timeline.loop) { setLoop(null); return; }
-                  const region = selectedRegion && selectedRegion.end > selectedRegion.start ? selectedRegion : null;
-                  const start = region ? region.start : 0;
-                  // With no region and no content yet (empty project, DAW mode), fall
-                  // back to a 2-bar cycle so the button never silently does nothing.
-                  const twoBars = (musical.timeSignature.numerator * 2 * 60) / musical.bpm;
-                  const end = region ? region.end : (timeline.duration > 0 ? timeline.duration : twoBars);
-                  if (end > start) setLoop({ start, end });
-                }}
-              >
-                <Repeat className="h-3.5 w-3.5" />
-                <span className="hidden text-[11px] font-semibold lg:inline">
-                  Cycle{timeline.loop ? '' : ''}
-                </span>
-              </Button>
-            )}
           </div>
 
           <Separator orientation="vertical" className="h-7" />
 
-          {/* Time display — centered */}
+          {/* Time display - centered */}
           <div className="flex flex-1 items-center justify-center">
             <TimeDisplay />
           </div>
@@ -253,22 +219,11 @@ export function Toolbar() {
             {audioTools && (
               <>
                 <Button
-                  data-tutorial="toolbar-instrument"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  title="Add instrument — open the studio to pick, play & record"
-                  onClick={() => setInstrumentPickerOpen(true)}
-                >
-                  <Piano className="h-3.5 w-3.5" />
-                </Button>
-
-                <Button
                   data-tutorial="toolbar-metronome"
                   variant="ghost"
                   size="icon"
                   className={`h-8 w-8 ${musical.showMetronome ? 'text-signal-400' : ''}`}
-                  title={musical.showMetronome ? 'Metronome on (audible click) — click to mute' : 'Metronome (audible click while playing)'}
+                  title={musical.showMetronome ? 'Metronome on (audible click) - click to mute' : 'Metronome (audible click while playing)'}
                   onClick={() => setMetronomeVisibility(!musical.showMetronome)}
                 >
                   <Timer className="h-3.5 w-3.5" />
@@ -279,7 +234,7 @@ export function Toolbar() {
                   variant="ghost"
                   size="icon"
                   className={`h-8 w-8 ${mixerOpen ? 'text-signal-400' : ''}`}
-                  title="Mixer — per-track volume, pan, mute, solo"
+                  title="Mixer - per-track volume, pan, mute, solo"
                   onClick={() => setMixerOpen(!mixerOpen)}
                 >
                   <Sliders className="h-3.5 w-3.5" />
@@ -287,7 +242,42 @@ export function Toolbar() {
               </>
             )}
 
-            {/* Snap indicator — quick toggle, also in Settings. Hidden on tight
+            {audioTools && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={!!timeline.loop}
+                className={`h-8 gap-1.5 px-2 ${
+                  timeline.loop
+                    ? 'bg-signal-400/15 text-signal-300 ring-1 ring-signal-400/50 hover:bg-signal-400/20'
+                    : 'text-zinc-400'
+                }`}
+                title={
+                  timeline.loop
+                    ? 'Cycle ON - playback repeats the highlighted region. Click to turn off.'
+                    : selectedRegion && selectedRegion.end > selectedRegion.start
+                      ? 'Cycle OFF - click to repeat playback over the selected region'
+                      : 'Cycle OFF - click to repeat playback over a region'
+                }
+                onClick={() => {
+                  if (timeline.loop) { setLoop(null); return; }
+                  const region = selectedRegion && selectedRegion.end > selectedRegion.start ? selectedRegion : null;
+                  const start = region ? region.start : 0;
+                  // With no region and no content yet (empty project, DAW mode), fall
+                  // back to a 2-bar cycle so the button never silently does nothing.
+                  const twoBars = (musical.timeSignature.numerator * 2 * 60) / musical.bpm;
+                  const end = region ? region.end : (timeline.duration > 0 ? timeline.duration : twoBars);
+                  if (end > start) setLoop({ start, end });
+                }}
+              >
+                <Repeat className="h-3.5 w-3.5" />
+                <span className="hidden text-[11px] font-semibold lg:inline">
+                  Cycle{timeline.loop ? '' : ''}
+                </span>
+              </Button>
+            )}
+
+            {/* Snap indicator - quick toggle, also in Settings. Hidden on tight
                 widths so the essential right-side actions never clip. */}
             <Button
               variant="ghost"

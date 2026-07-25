@@ -467,7 +467,7 @@ export function InspectorPanel() {
                   </Button>
                 </div>
 
-                {/* Loop — repeat the pattern to fill N copies (GarageBand loop).
+                {/* Loop - repeat the pattern to fill N copies (GarageBand loop).
                     Also draggable from the clip's right edge on the timeline. */}
                 {(() => {
                   const content = contentLengthBeats(selectedMidiTrack.notes);
@@ -888,7 +888,7 @@ export function InspectorPanel() {
                       onChange={(e) => setAutoCutAudioId(e.target.value)}
                       className="h-9 w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 text-sm text-zinc-100 outline-none"
                     >
-                      <option value="">— select audio track —</option>
+                      <option value="">- select audio track -</option>
                       {audioTracks.map((t) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}

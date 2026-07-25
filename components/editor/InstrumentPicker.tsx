@@ -180,7 +180,7 @@ function playClick(accent: boolean) {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
     osc.connect(g); g.connect(ctx.destination);
     osc.start(t); osc.stop(t + 0.06);
-  } catch { /* audio not ready — ignore */ }
+  } catch { /* audio not ready - ignore */ }
 }
 
 export function InstrumentPicker() {
@@ -258,14 +258,16 @@ export function InstrumentPicker() {
     if (heldRef.current.has(pitch)) return; // ignore key auto-repeat / double-press
     heldRef.current.set(pitch, { startMs: performance.now(), vel });
     setLit((prev) => { const n = new Set(prev); n.add(pitch); return n; });
-    if (selectedId) midiPlaybackEngine.previewNote(selectedId, pitch, vel, isDrum ? 0.7 : 0.9).catch(() => {});
-  }, [selectedId, isDrum]);
+    // Hold the note for as long as the key/pointer is down (see noteDown).
+    if (selectedId) midiPlaybackEngine.noteDown(selectedId, pitch, vel).catch(() => {});
+  }, [selectedId]);
 
   const noteOff = useCallback((pitch: number) => {
     const held = heldRef.current.get(pitch);
     if (!held) return;
     heldRef.current.delete(pitch);
     setLit((prev) => { const n = new Set(prev); n.delete(pitch); return n; });
+    if (selectedId) midiPlaybackEngine.noteUp(selectedId, pitch).catch(() => {});
     if (!isRecRef.current) return;
     const b = bpmRef.current;
     let startBeat = secondsToBeats((held.startMs - recStartRef.current) / 1000, b);
@@ -275,7 +277,7 @@ export function InstrumentPicker() {
     const durationBeats = isDrum ? 0.5 : Math.max(0.1, secondsToBeats((performance.now() - held.startMs) / 1000, b));
     takeRef.current.push({ id: crypto.randomUUID(), pitch, startBeat, durationBeats, velocity: held.vel });
     setTakeCount(takeRef.current.length);
-  }, [isDrum]);
+  }, [isDrum, selectedId]);
 
   /** A chord press sounds every tone with its strum offset and lights the pad. */
   const chordDown = useCallback((index: number, pitches: number[], offsets: number[], voicingName: string) => {
@@ -284,10 +286,13 @@ export function InstrumentPicker() {
     setActiveChord(index);
     setVoicingHint(voicingName);
     setLit(new Set(pitches));
+    // Held, not fixed-length: the chord rings until the pad is released.
     pitches.forEach((p, i) => {
       const delayMs = offsets[i] * 1000;
-      if (delayMs <= 0) midiPlaybackEngine.previewNote(selectedId, p, 0.85, 1.4).catch(() => {});
-      else window.setTimeout(() => midiPlaybackEngine.previewNote(selectedId, p, 0.85, 1.4).catch(() => {}), delayMs);
+      if (delayMs <= 0) midiPlaybackEngine.noteDown(selectedId, p, 0.85).catch(() => {});
+      else window.setTimeout(() => {
+        if (chordHeldRef.current) midiPlaybackEngine.noteDown(selectedId, p, 0.85).catch(() => {});
+      }, delayMs);
     });
   }, [selectedId]);
 
@@ -296,6 +301,7 @@ export function InstrumentPicker() {
     chordHeldRef.current = null;
     setActiveChord(null);
     setLit(new Set());
+    if (selectedId && held) held.pitches.forEach((p) => midiPlaybackEngine.noteUp(selectedId, p).catch(() => {}));
     if (!held || !isRecRef.current) return;
     const b = bpmRef.current;
     const heldSec = Math.max(0.12, (performance.now() - held.startMs) / 1000);
@@ -316,7 +322,7 @@ export function InstrumentPicker() {
       });
     });
     setTakeCount(takeRef.current.length);
-  }, []);
+  }, [selectedId]);
 
   const startRecording = useCallback(() => {
     takeRef.current = [];
@@ -364,7 +370,9 @@ export function InstrumentPicker() {
     setSelectedId(null);
   }, [stopRecording]);
 
-  const addToProject = useCallback(() => {
+  /** Creates the track. Opening the piano roll is now an explicit choice, not
+   *  something that happens to you when a take is empty. */
+  const addToProject = useCallback((openRoll: boolean) => {
     if (!selectedId) return;
     if (isRecRef.current) stopRecording();
     const notes = [...takeRef.current];
@@ -372,7 +380,7 @@ export function InstrumentPicker() {
     if (notes.length) updateMidiTrackNotes(id, notes);
     resetToRack();
     setInstrumentPickerOpen(false);
-    if (!notes.length) openPianoRoll(id); // empty → land them in the editor to write
+    if (openRoll) openPianoRoll(id);
   }, [selectedId, stopRecording, addMidiTrack, updateMidiTrackNotes, resetToRack, setInstrumentPickerOpen, openPianoRoll]);
 
   // Warm the sample buffers as soon as an instrument is opened, so the first note
@@ -393,6 +401,7 @@ export function InstrumentPicker() {
   useEffect(() => {
     if (!instrumentPickerOpen) {
       stopRecording();
+      midiPlaybackEngine.releaseAllLive();
       heldRef.current.clear();
       takeRef.current = [];
       setTakeCount(0);
@@ -440,70 +449,58 @@ export function InstrumentPicker() {
 
   return (
     <Dialog open={instrumentPickerOpen} onOpenChange={(o) => { if (!o) setInstrumentPickerOpen(false); }}>
-      <DialogContent className="max-w-none !p-0 w-[min(1040px,95vw)] overflow-hidden border-zinc-800 bg-[#09090b]">
+      <DialogContent className="max-w-none !p-0 w-[min(1040px,95vw)] h-[90vh] overflow-hidden border-zinc-800 bg-[#09090b]">
         <DialogTitle className="sr-only">{selectedId ? `Play ${def!.label}` : 'Instrument Studio'}</DialogTitle>
         {!selectedId ? (
           // ── Rack browse ──────────────────────────────────────────────────
-          <div className="flex max-h-[88vh] flex-col">
+          <div className="flex h-full flex-col">
             <div className="border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-[#09090b] px-6 pb-4 pt-6">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-signal-400">Instrument Studio</p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-zinc-50">Pick your sound</h2>
               <p className="mt-1 text-sm text-zinc-400">Real recorded instruments. Open one to play it, record a take, and drop it on the timeline.</p>
             </div>
-            <div className="overflow-y-auto px-6 py-5 scrollbar-thin" style={{ maxHeight: '72vh' }}>
-              {groups.map((group) => (
-                <div key={group.key} className="mb-6 last:mb-0">
-                  <div className="mb-2.5 flex items-baseline gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{group.label}</span>
-                    <span className="text-[11px] text-zinc-600">{group.blurb}</span>
-                    <div className="h-px flex-1 bg-zinc-800/70" />
-                  </div>
-                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))' }}>
-                    {group.items.map((inst) => {
-                      const s = skinFor(inst.id);
-                      return (
-                        <button
-                          key={inst.id}
-                          onClick={() => setSelectedId(inst.id)}
-                          className="group relative overflow-hidden rounded-xl text-left ring-1 ring-black/70 transition-all duration-150 hover:-translate-y-0.5 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
-                          style={{ background: s.panel, boxShadow: '0 6px 20px rgba(0,0,0,0.45)' }}
-                        >
-                          {/* instrument portrait */}
-                          <div className="relative h-[104px] overflow-hidden border-b border-black/60">
-                            <InstrumentArt id={inst.id} accent={s.accent} />
-                            {/* glass sheen */}
-                            <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(160deg,rgba(255,255,255,0.10),transparent 42%)' }} />
-                            <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100" style={{ background: `radial-gradient(120% 80% at 50% 120%, ${s.accent}33, transparent 70%)` }} />
-                          </div>
-                          {/* plate */}
-                          <div className="flex items-center gap-2 px-3 py-2.5">
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[13px] font-semibold tracking-tight text-zinc-50">{inst.label}</div>
-                              <div className="mt-0.5 truncate text-[11px] text-zinc-500">{s.tagline}</div>
-                            </div>
-                            <span className="shrink-0 rounded border border-black/50 bg-black/40 px-1.5 py-0.5 font-mono text-[9px] tracking-wider" style={{ color: s.accent }}>
-                              {kindLabel(inst.kind)}
-                            </span>
-                          </div>
-                          <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/0 backdrop-blur-sm transition-colors group-hover:text-white/85">
-                            Play
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-y-auto px-6 py-5 scrollbar-thin" style={{ flex: 1 }}>
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))' }}>
+                {INSTRUMENTS.map((inst) => {
+                  const s = skinFor(inst.id);
+                  return (
+                    <button
+                      key={inst.id}
+                      onClick={() => setSelectedId(inst.id)}
+                      className="group relative overflow-hidden rounded-xl text-left ring-1 ring-black/70 transition-all duration-150 hover:-translate-y-0.5 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
+                      style={{ background: s.panel, boxShadow: '0 6px 20px rgba(0,0,0,0.45)' }}
+                    >
+                      <div className="relative h-[104px] overflow-hidden border-b border-black/60">
+                        <InstrumentArt id={inst.id} accent={s.accent} />
+                        <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(160deg,rgba(255,255,255,0.10),transparent 42%)' }} />
+                        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100" style={{ background: `radial-gradient(120% 80% at 50% 120%, ${s.accent}33, transparent 70%)` }} />
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-semibold tracking-tight text-zinc-50">{inst.label}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-zinc-500">{s.tagline}</div>
+                        </div>
+                        <span className="shrink-0 rounded border border-black/50 bg-black/40 px-1.5 py-0.5 font-mono text-[9px] tracking-wider" style={{ color: s.accent }}>
+                          {kindLabel(inst.kind)}
+                        </span>
+                      </div>
+                      <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/0 backdrop-blur-sm transition-colors group-hover:text-white/85">
+                        Play
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
               <p className="mt-2 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
                 Concert and auxiliary percussion (timpani, congas, shakers, tambourine) and more mallets
-                (marimba, vibraphone, glockenspiel) need real samples vendored before they can appear here —
+                (marimba, vibraphone, glockenspiel) need real samples vendored before they can appear here -
                 every instrument in this studio plays actual recordings, never a synth stand-in.
               </p>
             </div>
           </div>
         ) : (
           // ── Play view ────────────────────────────────────────────────────
-          <div className="flex max-h-[88vh] flex-col">
+          <div className="flex h-full flex-col">
             <div className="flex items-center gap-3 border-b border-zinc-800 px-5 py-3" style={{ background: skin!.panel }}>
               <button
                 onClick={resetToRack}
@@ -521,7 +518,7 @@ export function InstrumentPicker() {
               </div>
             </div>
 
-            {/* Surface switcher — a guitar opens on a neck, not a keyboard, and
+            {/* Surface switcher - a guitar opens on a neck, not a keyboard, and
                 any pitched instrument can switch to smart chords. */}
             {!isDrum && (
               <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-950/60 px-5 py-2">
@@ -579,7 +576,7 @@ export function InstrumentPicker() {
                         value={Math.round(strumSpread * 1000)}
                         onChange={(e) => setStrumSpread(Number(e.target.value) / 1000)}
                         className="h-1 w-20 cursor-pointer accent-signal-400"
-                        title={`Strum speed — ${Math.round(strumSpread * 1000)}ms across the chord`}
+                        title={`Strum speed - ${Math.round(strumSpread * 1000)}ms across the chord`}
                         aria-label="Strum speed"
                       />
                     </div>
@@ -595,7 +592,7 @@ export function InstrumentPicker() {
               </div>
             )}
 
-            {/* Custom chord builder — replace any pad with any quality */}
+            {/* Custom chord builder - replace any pad with any quality */}
             {surface === 'chords' && customOpen && !isDrum && (
               <div className="max-h-44 overflow-y-auto border-b border-zinc-800 bg-zinc-950/80 px-5 py-3 scrollbar-thin">
                 <p className="mb-2 text-[11px] text-zinc-500">
@@ -667,9 +664,9 @@ export function InstrumentPicker() {
                 {isDrum
                   ? 'Tap the pads or press A · S · D · F · G · H'
                   : surface === 'chords'
-                    ? <>Press low on a pad for the bass note, higher for fuller inversions{voicingHint ? <> — <span className="text-signal-300">{voicingHint}</span></> : ''}</>
+                    ? <>Press low on a pad for the bass note, higher for fuller inversions{voicingHint ? <> - <span className="text-signal-300">{voicingHint}</span></> : ''}</>
                     : surface === 'fret'
-                      ? 'Click any fret to play it — standard tuning'
+                      ? 'Click any fret to play it - standard tuning'
                       : 'Play with your mouse or the A–K row · Z / X shift octave'}
               </div>
             </div>
@@ -722,7 +719,14 @@ export function InstrumentPicker() {
               <div className="ml-auto flex items-center gap-2">
                 <button onClick={resetToRack} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Back</button>
                 <button
-                  onClick={addToProject}
+                  onClick={() => addToProject(true)}
+                  title="Create the track and open it in the piano roll"
+                  className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
+                  Piano roll
+                </button>
+                <button
+                  onClick={() => addToProject(false)}
                   className="flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-signal-300"
                 >
                   <Plus className="h-4 w-4" /> Add to project

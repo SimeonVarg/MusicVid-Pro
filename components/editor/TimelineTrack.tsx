@@ -292,7 +292,7 @@ export function TimelineTrackInner({
         strokeWidth={1}
       />
 
-      {/* Drag-reorder drop indicator — shows where the dragged video track will land */}
+      {/* Drag-reorder drop indicator - shows where the dragged video track will land */}
       {dragPreviewIndex !== null && isVideo && (() => {
         const RULER_HEIGHT = 40;
         // dragPreviewIndex is relative to videoTracks; compute its absolute Y in the scrolled group
@@ -444,7 +444,7 @@ export function TimelineTrackInner({
           />
         )}
 
-        {/* MIDI note preview — tiled across loop repeats, with notch dividers */}
+        {/* MIDI note preview - tiled across loop repeats, with notch dividers */}
         {isMidi && (track as MidiTrack).notes.length > 0 && (() => {
           const notes = (track as MidiTrack).notes;
           let lo = Infinity, hi = -Infinity;
@@ -516,7 +516,7 @@ export function TimelineTrackInner({
           width={Math.max(0, trimmedWidth - 16)}
         />
 
-        {/* Media missing badge — shown when the track has no valid URL */}
+        {/* Media missing badge - shown when the track has no valid URL */}
         {(isVideo || isAudio) && !(track as VideoTrack | AudioTrack).url && (
           <Text
             x={8}
@@ -686,7 +686,7 @@ export function TimelineTrackInner({
             )}
           </>
         )}
-        {/* Snap indicator — purple vertical line at the nearest beat boundary */}
+        {/* Snap indicator - purple vertical line at the nearest beat boundary */}
         {snapIndicatorX !== null && (
           <Line
             points={[snapIndicatorX, 0, snapIndicatorX, clipHeight]}
