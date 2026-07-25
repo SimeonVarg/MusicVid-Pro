@@ -9,6 +9,15 @@ import { TimelineTrack } from './TimelineTrack';
 import { TimelineRuler } from './TimelineRuler';
 import { Playhead } from './Playhead';
 import { getTimelineGridConfig } from '@/lib/utils/musicalTime';
+import { TrackHeaders, type HeaderTrack } from './TrackHeaders';
+import {
+  RULER_HEIGHT,
+  H_SCROLLBAR_HEIGHT,
+  V_SCROLLBAR_WIDTH,
+  TRACK_HEADER_WIDTH,
+  resolveTrackHeight,
+  trackRowTop,
+} from '@/lib/utils/timelineLayout';
 import { ContextMenu, useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
 import { Copy, ClipboardPaste, CopyPlus, Scissors, Volume2, VolumeX, Lock, Unlock, Trash2, Music, Plus, Type, MapPin, AudioLines } from 'lucide-react';
 
@@ -58,13 +67,12 @@ export function Timeline() {
   >(null);
 
   const [trackHeightScale, setTrackHeightScale] = useState(1.0);
-  const TRACK_HEIGHT = Math.round(80 * trackHeightScale);
-  const RULER_HEIGHT = 40;
+  // Row geometry lives in lib/utils/timelineLayout so the header gutter and these
+  // lanes can never disagree about where a row sits.
+  const TRACK_HEIGHT = resolveTrackHeight(trackHeightScale);
   const CYCLE_LANE_H = 11;                       // grab strip at the bottom of the ruler
   const CYCLE_Y = RULER_HEIGHT - CYCLE_LANE_H;   // top of the cycle lane
   const LOOP_HANDLE_PX = 7;                       // edge grab tolerance
-  const H_SCROLLBAR_HEIGHT = 40;
-  const V_SCROLLBAR_WIDTH = 14;
   const PIXELS_PER_SECOND = 100 * timeline.zoom;
   const allTracks = [
     ...audioTracks.map((t) => ({ ...t, type: 'audio' as const })),
@@ -392,8 +400,36 @@ export function Timeline() {
     setVerticalScroll(clampedVerticalScroll);
   }, [clampedVerticalScroll, verticalScroll]);
 
+  // Header rows are built from the SAME ordered array that renders the lanes, so
+  // row N in the gutter is always the track drawn in lane N.
+  const headerTracks: HeaderTrack[] = allTracks.map((t) => ({
+    id: t.id,
+    name: t.name,
+    type: t.type,
+    isMuted: t.isMuted,
+    isLocked: t.isLocked,
+    isSoloed: 'isSoloed' in t ? !!t.isSoloed : false,
+    volume: 'volume' in t && typeof t.volume === 'number' ? t.volume : 1,
+    instrumentId: t.type === 'midi' && 'instrumentId' in t ? t.instrumentId : undefined,
+  }));
+
+  const handleHeaderWheel = (e: React.WheelEvent) => {
+    if (maxVerticalScroll <= 0) return;
+    setVerticalScroll((current) => Math.max(0, Math.min(maxVerticalScroll, current + e.deltaY)));
+  };
+
   return (
-    <div data-tutorial="timeline" ref={containerRef} className="w-full h-full relative overflow-hidden">
+    <div data-tutorial="timeline" className="flex h-full w-full overflow-hidden">
+      <TrackHeaders
+        tracks={headerTracks}
+        trackHeight={TRACK_HEIGHT}
+        viewportHeight={trackViewportHeight}
+        verticalScroll={clampedVerticalScroll}
+        width={TRACK_HEADER_WIDTH}
+        onWheel={handleHeaderWheel}
+      />
+
+      <div ref={containerRef} className="relative h-full min-w-0 flex-1 overflow-hidden">
       {hasMeasuredViewport && (
       <Stage
         ref={stageRef}
@@ -466,7 +502,7 @@ export function Timeline() {
                   <TimelineTrack
                     key={track.id}
                     track={track}
-                    y={RULER_HEIGHT + index * TRACK_HEIGHT}
+                    y={trackRowTop(index, TRACK_HEIGHT)}
                     height={TRACK_HEIGHT}
                     pixelsPerSecond={PIXELS_PER_SECOND}
                     scrollX={clampedScroll}
@@ -595,6 +631,7 @@ export function Timeline() {
             +
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -5,12 +5,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useEditorStore, showsAudioTools, showsVideoTools } from '@/stores/editorStore';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
-import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
-import { Music, Video, Type, Trash2, Lock, Unlock, Eye, EyeOff, Mic, Plus, Film, Piano, Copy, CopyPlus, ClipboardPaste, Scissors, Volume2, VolumeX } from 'lucide-react';
+import { Music, Video, Type, Mic, Plus, Film, Piano } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { RecordingPanel } from '@/components/editor/RecordingPanel';
 
-type RailMenu = 'tracks' | 'upload' | 'record' | 'text';
+/**
+ * The timeline's header gutter (TrackHeaders) owns per-track management now —
+ * name, mute/solo/lock, volume, selection, context menu — lined up with each
+ * lane. So this panel is the LIBRARY: bring media in, record, add text. Listing
+ * the tracks here too would just duplicate the gutter.
+ */
+type RailMenu = 'upload' | 'record' | 'text';
 
 export function TrackList() {
   const {
@@ -18,31 +23,18 @@ export function TrackList() {
     audioTracks,
     textTracks,
     midiTracks,
-    selectedTrackIds,
-    removeTrack,
-    updateTrack,
-    updateTextTrack,
     setSelectedTrackIds,
     addVideoTrack,
     addAudioTrack,
     addTextTrack,
-    copyTrack,
-    pasteTrack,
-    duplicateTrack,
-    splitTrack,
-    openPianoRoll,
     setInstrumentPickerOpen,
-    clipboardTrack,
-    timeline,
     mode,
   } = useEditorStore();
   const audioTools = showsAudioTools(mode);
   const videoTools = showsVideoTools(mode);
-  const rowMenu = useContextMenu();
-  const [activeMenu, setActiveMenu] = useState<RailMenu>('tracks');
+  const [activeMenu, setActiveMenu] = useState<RailMenu>('upload');
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
   const [newTextValue, setNewTextValue] = useState('New text');
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
 
   const loadDemoProject = async () => {
@@ -76,20 +68,6 @@ export function TrackList() {
     [audioTracks, midiTracks, textTracks, videoTracks]
   );
 
-  const buildRowMenu = (track: (typeof allTracks)[number]): MenuItem[] => [
-    { label: 'Copy', icon: Copy, onSelect: () => copyTrack(track.id) },
-    { label: 'Paste', icon: ClipboardPaste, disabled: !clipboardTrack, onSelect: () => pasteTrack(track.id, timeline.currentTime) },
-    { label: 'Duplicate', icon: CopyPlus, onSelect: () => duplicateTrack(track.id) },
-    ...(track.type !== 'midi'
-      ? [{ label: 'Split at playhead', icon: Scissors, onSelect: () => splitTrack(track.id, timeline.currentTime) } as MenuItem]
-      : [{ label: 'Edit notes (Piano Roll)', icon: Piano, onSelect: () => openPianoRoll(track.id) } as MenuItem]),
-    { type: 'separator' },
-    { label: track.isMuted ? 'Unmute' : 'Mute', icon: track.isMuted ? VolumeX : Volume2, keepOpen: true, onSelect: () => toggleMute(track.id, track.type, track.isMuted) },
-    { label: track.isLocked ? 'Unlock' : 'Lock', icon: track.isLocked ? Unlock : Lock, keepOpen: true, onSelect: () => toggleLock(track.id, track.type, track.isLocked) },
-    { type: 'separator' },
-    { label: 'Delete track', icon: Trash2, danger: true, onSelect: () => setPendingDeleteId(track.id) },
-  ];
-
   const handleTrackClick = (trackId: string) => {
     setSelectedTrackIds([trackId]);
   };
@@ -111,26 +89,10 @@ export function TrackList() {
         await addAudioTrack(file);
       }
 
-      setActiveMenu('tracks');
+      setActiveMenu('upload');
     };
 
     input.click();
-  };
-
-  const toggleMute = (trackId: string, trackType: 'audio' | 'video' | 'text' | 'midi', currentMuted: boolean) => {
-    if (trackType === 'text') {
-      updateTextTrack(trackId, { isMuted: !currentMuted });
-      return;
-    }
-    updateTrack(trackId, { isMuted: !currentMuted });
-  };
-
-  const toggleLock = (trackId: string, trackType: 'audio' | 'video' | 'text' | 'midi', currentLocked: boolean) => {
-    if (trackType === 'text') {
-      updateTextTrack(trackId, { isLocked: !currentLocked });
-      return;
-    }
-    updateTrack(trackId, { isLocked: !currentLocked });
   };
 
   const createTextTrack = () => {
@@ -139,19 +101,17 @@ export function TrackList() {
     }
     addTextTrack(newTextValue.trim());
     setIsTextModalOpen(false);
-    setActiveMenu('tracks');
+    setActiveMenu('upload');
   };
 
   const menuTitles: Record<RailMenu, string> = {
-    tracks: 'Tracks',
-    upload: 'Upload',
+    upload: 'Add',
     record: 'Record + Create',
     text: 'Text',
   };
 
   const menuDescriptions: Record<RailMenu, string> = {
-    tracks: 'Manage clips and track visibility',
-    upload: 'Bring in new video or audio',
+    upload: 'Bring media into the project',
     record: 'Record audio or video clips',
     text: 'Create and manage text clips',
   };
@@ -159,7 +119,7 @@ export function TrackList() {
   // Text clips are a video-titling tool — irrelevant in Beats mode.
   const railMenus = (Object.keys(menuTitles) as RailMenu[]).filter((m) => m !== 'text' || videoTools);
   useEffect(() => {
-    if (!railMenus.includes(activeMenu)) setActiveMenu('tracks');
+    if (!railMenus.includes(activeMenu)) setActiveMenu('upload');
   }, [railMenus, activeMenu]);
 
   return (
@@ -176,7 +136,7 @@ export function TrackList() {
             {...(menu === 'upload' ? { 'data-tutorial': 'tracklist-upload' } : {})}
             {...(menu === 'record' ? { 'data-tutorial': 'tracklist-record' } : {})}
           >
-            {menu === 'tracks' ? <Video className="h-4 w-4" /> : menu === 'upload' ? <Plus className="h-4 w-4" /> : menu === 'record' ? <Mic className="h-4 w-4" /> : <Type className="h-4 w-4" />}
+            {menu === 'upload' ? <Plus className="h-4 w-4" /> : menu === 'record' ? <Mic className="h-4 w-4" /> : <Type className="h-4 w-4" />}
           </Button>
         ))}
       </div>
@@ -187,11 +147,9 @@ export function TrackList() {
             <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">{menuTitles[activeMenu]}</p>
             <h3 className="truncate text-sm font-semibold text-zinc-100">{menuDescriptions[activeMenu]}</h3>
           </div>
-          {activeMenu !== 'tracks' && (
-            <Button variant="ghost" size="sm" onClick={() => setActiveMenu('tracks')}>
-              Back
-            </Button>
-          )}
+          <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400" title="Tracks in this project — manage them in the timeline">
+            {allTracks.length}
+          </span>
         </div>
 
         {activeMenu === 'upload' && (
@@ -210,7 +168,7 @@ export function TrackList() {
               <Button
                 variant="outline"
                 className="w-full justify-start gap-2"
-                onClick={() => { setActiveMenu('tracks'); setInstrumentPickerOpen(true); }}
+                onClick={() => setInstrumentPickerOpen(true)}
               >
                 <Piano className="h-4 w-4" />
                 Add Instrument
@@ -219,8 +177,27 @@ export function TrackList() {
           </div>
         )}
 
+        {/* First-run: the empty project needs a way in. Once tracks exist they
+            live in the timeline's header gutter, not here. */}
+        {activeMenu === 'upload' && allTracks.length === 0 && (
+          <div className="mt-3 flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center">
+            <Film className="mb-3 h-8 w-8 text-zinc-700" />
+            <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
+            <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere — or use the buttons above</p>
+            <Button size="sm" className="mt-4" onClick={loadDemoProject} disabled={demoLoading}>
+              {demoLoading ? 'Loading…' : 'Load demo project'}
+            </Button>
+          </div>
+        )}
+
+        {activeMenu === 'upload' && allTracks.length > 0 && (
+          <p className="mt-3 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+            Your tracks live in the timeline — each one lines up with its clips. Mute, solo, lock and volume are on the track header.
+          </p>
+        )}
+
         {activeMenu === 'record' && (
-          <RecordingPanel onDone={() => setActiveMenu('tracks')} />
+          <RecordingPanel onDone={() => setActiveMenu('upload')} />
         )}
 
         {activeMenu === 'text' && (
@@ -245,101 +222,6 @@ export function TrackList() {
           </div>
         )}
 
-        {activeMenu === 'tracks' && (
-          <>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="section-label">Tracks</span>
-              <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{allTracks.length}</span>
-            </div>
-
-            {allTracks.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center">
-                <Film className="mb-3 h-8 w-8 text-zinc-700" />
-                <p className="text-sm font-medium text-zinc-400">No tracks yet</p>
-                <p className="mt-1 text-xs text-zinc-600">Drop a video or song anywhere — or use the + rail</p>
-                <Button size="sm" className="mt-4" onClick={loadDemoProject} disabled={demoLoading}>
-                  {demoLoading ? 'Loading…' : 'Load demo project'}
-                </Button>
-              </div>
-            ) : (
-              <div className="flex-1 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
-                {allTracks.map((track) => {
-                  const isSelected = selectedTrackIds.includes(track.id);
-                  const isAudio = track.type === 'audio';
-                  const isText = track.type === 'text';
-                  const isMidi = track.type === 'midi';
-                  const iconColor = isText ? 'text-pink-400' : isMidi ? 'text-signal-300' : isAudio ? 'text-signal-400' : 'text-cyan-400';
-
-                  return (
-                    <div
-                      key={track.id}
-                      onClick={() => handleTrackClick(track.id)}
-                      onDoubleClick={() => { if (isMidi) openPianoRoll(track.id); }}
-                      onContextMenu={(e) => { setSelectedTrackIds([track.id]); rowMenu.open(e, buildRowMenu(track)); }}
-                      className={`group cursor-pointer rounded-lg border px-2.5 py-2 transition-all ${
-                        isSelected
-                          ? 'border-signal-400/60 bg-signal-400/10 ring-1 ring-signal-400/20'
-                          : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-800/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`shrink-0 ${iconColor}`}>
-                          {isText ? <Type className="h-3.5 w-3.5" /> : isMidi ? <Piano className="h-3.5 w-3.5" /> : isAudio ? <Music className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-medium text-zinc-200">{track.name}</div>
-                          <div className="mt-0.5 text-[10px] text-zinc-500">
-                            {track.duration.toFixed(1)}s
-                            {isAudio && 'bpm' in track && <> &middot; {track.bpm.toFixed(0)} BPM</>}
-                            {isMidi && 'notes' in track && <> &middot; {track.notes.length} notes</>}
-                            {isText && 'text' in track && <> &middot; {track.text.slice(0, 12)}</>}
-                          </div>
-                        </div>
-
-                        <div className={`flex items-center gap-0.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                          <button
-                            className={`rounded p-1 transition-colors hover:bg-zinc-700 ${track.isMuted ? 'text-zinc-500' : 'text-zinc-400'}`}
-                            onClick={(e) => { e.stopPropagation(); toggleMute(track.id, track.type, track.isMuted); }}
-                            title={track.isMuted ? 'Unmute' : 'Mute'}
-                          >
-                            {track.isMuted ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                          </button>
-
-                          <button
-                            className={`rounded p-1 transition-colors hover:bg-zinc-700 ${track.isLocked ? 'text-amber-400' : 'text-zinc-400'}`}
-                            onClick={(e) => { e.stopPropagation(); toggleLock(track.id, track.type, track.isLocked); }}
-                            title={track.isLocked ? 'Unlock' : 'Lock'}
-                          >
-                            {track.isLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                          </button>
-
-                          <button
-                            className="rounded p-1 text-zinc-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                            onClick={(e) => { e.stopPropagation(); setPendingDeleteId(track.id); }}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {(track.isMuted || track.isLocked || (isAudio && 'isMaster' in track && track.isMaster)) && (
-                        <div className="mt-1.5 flex gap-1">
-                          {track.isMuted && <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">Muted</span>}
-                          {track.isLocked && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">Locked</span>}
-                          {isAudio && 'isMaster' in track && track.isMaster && (
-                            <span className="rounded-full bg-signal-400/15 px-2 py-0.5 text-[10px] text-signal-300">Master</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
       </div>
 
 
@@ -364,34 +246,6 @@ export function TrackList() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pendingDeleteId !== null} onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
-          <DialogHeader>
-            <DialogTitle>Delete Track</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              Are you sure you want to delete this track? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setPendingDeleteId(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (pendingDeleteId) {
-                  removeTrack(pendingDeleteId);
-                }
-                setPendingDeleteId(null);
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {rowMenu.node}
     </div>
   );
 }
