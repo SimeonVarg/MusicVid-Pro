@@ -20,6 +20,8 @@ import {
   chordPitches,
   voicingAt,
   strumOffsets,
+  VOICING_BANDS,
+  QUALITY_INTERVALS,
 } from '@/lib/midi/chords';
 
 /** Standard tunings, low string first (MIDI). */
@@ -181,7 +183,8 @@ export function ChordPads({
     if (!el) return;
     const r = el.getBoundingClientRect();
     const y = (clientY - r.top) / r.height;      // 0 at top, 1 at bottom
-    const voicing = voicingAt(y);
+    const size = QUALITY_INTERVALS[chords[i].quality].length;
+    const voicing = voicingAt(y, size);
     const pitches = chordPitches(chords[i], voicing, 60);
     const offsets = strumOffsets(pitches.length, strumSpread, direction);
     onChordDown(i, pitches, offsets, voicing.name);
@@ -200,7 +203,7 @@ export function ChordPads({
             onMouseLeave={onChordUp}
             onTouchStart={(e) => { e.preventDefault(); press(i, e.touches[0].clientY); }}
             onTouchEnd={(e) => { e.preventDefault(); onChordUp(); }}
-            className="relative flex h-32 flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
+            className="relative flex h-64 flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
             style={{
               background: on
                 ? 'linear-gradient(180deg,#c9f24d,#8fbf16)'
@@ -210,8 +213,8 @@ export function ChordPads({
           >
             {/* voicing bands - a visual hint that height changes the voicing */}
             <div className="pointer-events-none absolute inset-0 flex flex-col">
-              {[0.20, 0.20, 0.22, 0.20, 0.18].map((h, b) => (
-                <div key={b} className="w-full border-b border-white/[0.05] last:border-b-0" style={{ height: `${h * 100}%` }} />
+              {Array.from({ length: VOICING_BANDS }).map((_, b) => (
+                <div key={b} className="w-full border-b border-white/[0.06] last:border-b-0" style={{ height: `${100 / VOICING_BANDS}%` }} />
               ))}
             </div>
             <span className={`z-10 text-[13px] font-bold tracking-tight ${on ? 'text-zinc-900' : 'text-zinc-100'}`}>

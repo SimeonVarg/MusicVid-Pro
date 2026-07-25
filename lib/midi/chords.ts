@@ -84,16 +84,38 @@ export interface Voicing {
 }
 
 /**
- * Bottom of the pad = sparse and low (bass note), top = full and high.
- * Five bands, mirroring how GarageBand's Smart pads get denser as you move up.
+ * How many playable bands a chord pad is divided into. Each band steps the
+ * voicing up by ONE CHORD TONE, not a whole octave: pressing one band higher
+ * should give the next inversion up, the way moving up a guitar neck does.
+ * A whole-octave jump per band is what made the pads feel unusable.
  */
-export function voicingAt(y: number): Voicing {
+export const VOICING_BANDS = 9;
+
+const ORDINAL = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion'];
+
+/**
+ * Bottom of the pad = sparse and low (bass note, then root + 5th), everything
+ * above = the full chord walking up one inversion at a time. `y` is 0 at the
+ * TOP and 1 at the BOTTOM, matching pointer maths.
+ */
+export function voicingAt(y: number, chordSize = 3): Voicing {
   const t = Math.max(0, Math.min(1, y));
-  if (t > 0.82) return { noteCount: 1, inversion: 0, octaveShift: -1, name: 'bass' };
-  if (t > 0.62) return { noteCount: 2, inversion: 0, octaveShift: -1, name: 'root + 5th' };
-  if (t > 0.40) return { noteCount: 99, inversion: 0, octaveShift: 0, name: 'root position' };
-  if (t > 0.20) return { noteCount: 99, inversion: 1, octaveShift: 0, name: '1st inversion' };
-  return { noteCount: 99, inversion: 2, octaveShift: 1, name: '2nd inversion' };
+  // band 0 at the bottom .. VOICING_BANDS-1 at the top
+  const band = Math.min(VOICING_BANDS - 1, Math.floor((1 - t) * VOICING_BANDS));
+  if (band === 0) return { noteCount: 1, inversion: 0, octaveShift: -1, name: 'bass' };
+  if (band === 1) return { noteCount: 2, inversion: 0, octaveShift: -1, name: 'root + 5th' };
+
+  // Remaining bands walk the full chord up one tone per band. Once past the top
+  // inversion the shape repeats an octave higher, which is exactly what the next
+  // position up the neck is.
+  const step = band - 2;
+  const size = Math.max(2, chordSize);
+  const inversion = step % size;
+  const octaveShift = Math.floor(step / size);
+  const name = octaveShift > 0
+    ? `${ORDINAL[inversion] ?? `inversion ${inversion}`} +${octaveShift}oct`
+    : (ORDINAL[inversion] ?? `inversion ${inversion}`);
+  return { noteCount: 99, inversion, octaveShift, name };
 }
 
 /**

@@ -5,7 +5,7 @@
  * app's performance.now() transport at the moment playback starts. Seeking while
  * playing is handled by the store calling start() again from the new position.
  */
-import { ensureTone } from './tone';
+import { ensureTone, tone } from './tone';
 import type { MidiNote } from './noteUtils';
 import { beatsToSeconds, clampPitch } from './noteUtils';
 import { createVoice, loadInstrumentBuffers, type MidiVoice } from './toneInstruments';
@@ -103,33 +103,53 @@ class MidiPlaybackEngine {
 
   // Live-play voices, one per instrument, kept alive so a held key sustains.
   private liveVoices = new Map<string, MidiVoice>();
+  private readyInstruments = new Set<string>();
 
-  private async liveVoice(instrumentId: string): Promise<MidiVoice> {
+  /**
+   * Get an instrument fully ready to play BEFORE the user touches anything:
+   * context resumed, samples decoded, voice built. Call this when a playable
+   * surface opens.
+   *
+   * Without it the first press awaited a ~20-file decode, and because every
+   * press awaited the same promise they all resolved together - silence for
+   * several seconds, then every note firing at once.
+   */
+  async prepare(instrumentId: string): Promise<void> {
     const Tone = await ensureTone();
-    await loadInstrumentBuffers(instrumentId);
+    // Tone schedules `lookAhead` seconds into the future (0.1s by default).
+    // For live playing that is an audible delay on every note, so trim it.
+    try {
+      const ctx = Tone.getContext();
+      if (ctx.lookAhead > 0.02) ctx.lookAhead = 0.01;
+    } catch { /* older context shape - ignore */ }
     if (!this.started) { await Tone.start(); this.started = true; }
-    let v = this.liveVoices.get(instrumentId);
-    if (!v) { v = createVoice(instrumentId); this.liveVoices.set(instrumentId, v); }
-    return v;
+    await loadInstrumentBuffers(instrumentId);
+    if (!this.liveVoices.has(instrumentId)) {
+      this.liveVoices.set(instrumentId, createVoice(instrumentId));
+    }
+    this.readyInstruments.add(instrumentId);
+  }
+
+  isReady(instrumentId: string): boolean {
+    return this.readyInstruments.has(instrumentId);
   }
 
   /**
-   * Press a note and HOLD it. The note rings until noteUp, so a sustaining
-   * instrument keeps sounding while the key is down and a short tap stops short.
-   * Percussion has no meaningful sustain, so it falls back to a one-shot.
+   * Press a note and HOLD it. Synchronous on purpose: an async press would queue
+   * behind sample loading and replay in a burst. If the instrument is not ready
+   * the press is DROPPED and reported, so the UI can say so instead of lying.
    */
-  async noteDown(instrumentId: string, pitch: number, velocity = 0.85): Promise<void> {
-    const voice = await this.liveVoice(instrumentId);
-    if (voice.attack) voice.attack(clampPitch(pitch), velocity);
-    else {
-      const Tone = await ensureTone();
-      voice.trigger(clampPitch(pitch), Tone.now() + 0.02, 0.6, velocity);
-    }
+  noteDown(instrumentId: string, pitch: number, velocity = 0.85): boolean {
+    const voice = this.liveVoices.get(instrumentId);
+    if (!voice) return false;
+    const p = clampPitch(pitch);
+    if (voice.attack) voice.attack(p, velocity);
+    else voice.trigger(p, tone().now(), 0.6, velocity); // one-shot percussion
+    return true;
   }
 
-  async noteUp(instrumentId: string, pitch: number): Promise<void> {
-    const voice = this.liveVoices.get(instrumentId);
-    voice?.release?.(clampPitch(pitch));
+  noteUp(instrumentId: string, pitch: number): void {
+    this.liveVoices.get(instrumentId)?.release?.(clampPitch(pitch));
   }
 
   /** Drop live voices (closing the studio) so nothing is left ringing. */

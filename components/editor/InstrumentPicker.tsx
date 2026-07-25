@@ -212,6 +212,9 @@ export function InstrumentPicker() {
   const [customOpen, setCustomOpen] = useState(false);
   const [customChords, setCustomChords] = useState<Chord[] | null>(null);
   const [voicingHint, setVoicingHint] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [chordSustain, setChordSustain] = useState(true);
+  const chordSustainRef = useRef(chordSustain); chordSustainRef.current = chordSustain;
   const chordHeldRef = useRef<{ pitches: number[]; offsets: number[]; startMs: number } | null>(null);
 
   const heldRef = useRef<Map<number, { startMs: number; vel: number }>>(new Map());
@@ -259,7 +262,7 @@ export function InstrumentPicker() {
     heldRef.current.set(pitch, { startMs: performance.now(), vel });
     setLit((prev) => { const n = new Set(prev); n.add(pitch); return n; });
     // Hold the note for as long as the key/pointer is down (see noteDown).
-    if (selectedId) midiPlaybackEngine.noteDown(selectedId, pitch, vel).catch(() => {});
+    if (selectedId) midiPlaybackEngine.noteDown(selectedId, pitch, vel);
   }, [selectedId]);
 
   const noteOff = useCallback((pitch: number) => {
@@ -267,7 +270,7 @@ export function InstrumentPicker() {
     if (!held) return;
     heldRef.current.delete(pitch);
     setLit((prev) => { const n = new Set(prev); n.delete(pitch); return n; });
-    if (selectedId) midiPlaybackEngine.noteUp(selectedId, pitch).catch(() => {});
+    if (selectedId) midiPlaybackEngine.noteUp(selectedId, pitch);
     if (!isRecRef.current) return;
     const b = bpmRef.current;
     let startBeat = secondsToBeats((held.startMs - recStartRef.current) / 1000, b);
@@ -286,13 +289,13 @@ export function InstrumentPicker() {
     setActiveChord(index);
     setVoicingHint(voicingName);
     setLit(new Set(pitches));
-    // Held, not fixed-length: the chord rings until the pad is released.
+    // The WHOLE chord always sounds, even on a quick tap: a strummed note that
+    // lands after the release still fires. Sustain then decides whether it rings
+    // out or stops with your finger.
     pitches.forEach((p, i) => {
       const delayMs = offsets[i] * 1000;
-      if (delayMs <= 0) midiPlaybackEngine.noteDown(selectedId, p, 0.85).catch(() => {});
-      else window.setTimeout(() => {
-        if (chordHeldRef.current) midiPlaybackEngine.noteDown(selectedId, p, 0.85).catch(() => {});
-      }, delayMs);
+      if (delayMs <= 0) midiPlaybackEngine.noteDown(selectedId, p, 0.85);
+      else window.setTimeout(() => midiPlaybackEngine.noteDown(selectedId, p, 0.85), delayMs);
     });
   }, [selectedId]);
 
@@ -301,7 +304,13 @@ export function InstrumentPicker() {
     chordHeldRef.current = null;
     setActiveChord(null);
     setLit(new Set());
-    if (selectedId && held) held.pitches.forEach((p) => midiPlaybackEngine.noteUp(selectedId, p).catch(() => {}));
+    if (selectedId && held && !chordSustainRef.current) {
+      // No sustain: the chord stops with your finger, but never before every
+      // strummed tone has actually been struck.
+      const tail = Math.max(...held.offsets, 0) * 1000;
+      const stop = () => held.pitches.forEach((p) => midiPlaybackEngine.noteUp(selectedId, p));
+      if (tail <= 0) stop(); else window.setTimeout(stop, tail + 40);
+    }
     if (!held || !isRecRef.current) return;
     const b = bpmRef.current;
     const heldSec = Math.max(0.12, (performance.now() - held.startMs) / 1000);
@@ -386,7 +395,13 @@ export function InstrumentPicker() {
   // Warm the sample buffers as soon as an instrument is opened, so the first note
   // isn't silent.
   useEffect(() => {
-    if (selectedId) midiPlaybackEngine.preload([selectedId]).catch(() => {});
+    if (!selectedId) return;
+    let cancelled = false;
+    setReady(midiPlaybackEngine.isReady(selectedId));
+    midiPlaybackEngine.prepare(selectedId)
+      .then(() => { if (!cancelled) setReady(true); })
+      .catch(() => { if (!cancelled) setReady(false); });
+    return () => { cancelled = true; };
   }, [selectedId]);
 
   // Fretted instruments open on their own neck — a guitar shouldn't greet you
@@ -513,6 +528,7 @@ export function InstrumentPicker() {
                 <div className="truncate text-[11px] text-white/50">{skin!.tagline}</div>
               </div>
               <div className="ml-auto flex items-center gap-2">
+                {!ready && <span className="rounded bg-black/50 px-2 py-0.5 text-[10px] font-medium text-amber-300">Loading samples...</span>}
                 <span className="font-mono text-[10px] tracking-wider text-white/60">{kindLabel(def!.kind)}</span>
                 <span className="h-2.5 w-2.5 rounded-full transition-all" style={{ background: playing ? skin!.accent : '#3f3f46', boxShadow: playing ? `0 0 10px ${skin!.accent}` : 'none' }} />
               </div>
@@ -580,6 +596,14 @@ export function InstrumentPicker() {
                         aria-label="Strum speed"
                       />
                     </div>
+
+                    <button
+                      onClick={() => setChordSustain((v) => !v)}
+                      title={chordSustain ? 'Sustain on: the chord rings out after you let go' : 'Sustain off: the chord stops when you let go'}
+                      className={`rounded-md border px-2.5 py-1 text-[11px] font-medium ${chordSustain ? 'border-signal-400/50 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}
+                    >
+                      Sustain
+                    </button>
 
                     <button
                       onClick={() => setCustomOpen((v) => !v)}
@@ -688,7 +712,7 @@ export function InstrumentPicker() {
 
               <div className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5 text-[11px] text-zinc-400">
                 <span className={`h-1.5 w-1.5 rounded-full ${takeCount > 0 ? 'bg-signal-400' : 'bg-zinc-600'}`} />
-                {takeCount > 0 ? `${takeCount} note${takeCount > 1 ? 's' : ''} recorded` : 'No take yet'}
+                {takeCount > 0 ? 'Take recorded' : 'No take yet'}
               </div>
 
               {takeCount > 0 && (

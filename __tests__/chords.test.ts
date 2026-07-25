@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chordPitches,
   voicingAt,
+  VOICING_BANDS,
   strumOffsets,
   chordLabel,
   chordSetForKey,
@@ -9,57 +10,70 @@ import {
 } from '@/lib/midi/chords';
 
 const pcs = (pitches: number[]) => pitches.map((p) => ((p % 12) + 12) % 12);
+/** Pointer y (0 = top, 1 = bottom) landing in the middle of band `b`. */
+const yForBand = (b: number) => 1 - (b + 0.5) / VOICING_BANDS;
 
 describe('chord construction', () => {
   it('builds a root-position major triad on the right pitch classes', () => {
     // C major at baseRoot 60 → C4 E4 G4
-    const notes = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(0.5), 60);
+    const notes = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(yForBand(2), 3), 60);
     expect(notes).toEqual([60, 64, 67]);
   });
 
   it('respects quality — minor flattens the third, 7ths add the seventh', () => {
-    expect(chordPitches({ rootPc: 0, quality: 'min' }, voicingAt(0.5), 60)).toEqual([60, 63, 67]);
-    expect(chordPitches({ rootPc: 0, quality: 'maj7' }, voicingAt(0.5), 60)).toEqual([60, 64, 67, 71]);
-    expect(chordPitches({ rootPc: 0, quality: 'm7' }, voicingAt(0.5), 60)).toEqual([60, 63, 67, 70]);
+    expect(chordPitches({ rootPc: 0, quality: 'min' }, voicingAt(yForBand(2), 3), 60)).toEqual([60, 63, 67]);
+    expect(chordPitches({ rootPc: 0, quality: 'maj7' }, voicingAt(yForBand(2), 4), 60)).toEqual([60, 64, 67, 71]);
+    expect(chordPitches({ rootPc: 0, quality: 'm7' }, voicingAt(yForBand(2), 4), 60)).toEqual([60, 63, 67, 70]);
   });
 
   it('inverts by lifting the lowest note an octave, keeping the same pitch classes', () => {
-    const root = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(0.5), 60);   // root position
-    const first = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(0.3), 60);  // 1st inversion
+    const root = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(yForBand(2), 3), 60);
+    const first = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(yForBand(3), 3), 60);
+    expect(root).toEqual([60, 64, 67]);
     expect(first).toEqual([64, 67, 72]);
-    // An inversion re-voices the SAME chord — the set of pitch classes is unchanged.
     expect(new Set(pcs(first))).toEqual(new Set(pcs(root)));
   });
 
-  it('gives sparse low voicings at the bottom and fuller high ones at the top', () => {
-    const bottom = chordPitches({ rootPc: 0, quality: 'maj7' }, voicingAt(0.95), 60);
-    const lowMid = chordPitches({ rootPc: 0, quality: 'maj7' }, voicingAt(0.7), 60);
-    const top = chordPitches({ rootPc: 0, quality: 'maj7' }, voicingAt(0.05), 60);
-    expect(bottom).toHaveLength(1);                       // bass note only
-    expect(lowMid).toHaveLength(2);                       // root + 5th
-    expect(top.length).toBeGreaterThanOrEqual(4);         // full chord
-    // and it genuinely rises as you move up the pad
-    expect(Math.min(...bottom)).toBeLessThan(Math.min(...lowMid) + 1);
-    expect(Math.min(...top)).toBeGreaterThan(Math.min(...bottom));
+  it('each band steps up by ONE CHORD TONE, never a whole octave', () => {
+    // The complaint: every box jumped an octave. Walking up the pad should walk
+    // up the chord, so each band's lowest note is the previous band's SECOND
+    // note - exactly what moving up a guitar neck does.
+    const chord = { rootPc: 0, quality: 'maj' } as const;
+    const full = [];
+    for (let b = 2; b < VOICING_BANDS; b++) {
+      full.push(chordPitches(chord, voicingAt(yForBand(b), 3), 60));
+    }
+    for (let i = 1; i < full.length; i++) {
+      expect(full[i][0]).toBe(full[i - 1][1]);
+      const jump = full[i][0] - full[i - 1][0];
+      expect(jump).toBeGreaterThan(0);
+      expect(jump).toBeLessThan(12); // a full octave jump is the bug
+    }
   });
 
-  it('root + 5th picks the actual fifth of the chord, including altered fifths', () => {
-    // this band also drops an octave (octaveShift -1), hence 48 rather than 60
-    expect(chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(0.7), 60)).toEqual([48, 55]);
-    // diminished has no perfect 5th — it must use the ♭5, not fall back to 7 semis
-    expect(chordPitches({ rootPc: 0, quality: 'dim' }, voicingAt(0.7), 60)).toEqual([48, 54]);
-    expect(chordPitches({ rootPc: 0, quality: 'aug' }, voicingAt(0.7), 60)).toEqual([48, 56]);
+  it('gives many playable bands, not a couple', () => {
+    expect(VOICING_BANDS).toBeGreaterThanOrEqual(8);
+    const names = new Set<string>();
+    for (let b = 0; b < VOICING_BANDS; b++) names.add(voicingAt(yForBand(b), 3).name);
+    expect(names.size).toBe(VOICING_BANDS);
+  });
+
+  it('a seventh chord walks through four inversions before repeating', () => {
+    const seventh = { rootPc: 0, quality: 'maj7' } as const;
+    const lows = [];
+    for (let b = 2; b < 2 + 5; b++) lows.push(chordPitches(seventh, voicingAt(yForBand(b), 4), 60)[0]);
+    expect(lows).toEqual([60, 64, 67, 71, 72]); // C E G B, then C an octave up
   });
 
   it('transposes with the root', () => {
-    const g = chordPitches({ rootPc: 7, quality: 'maj' }, voicingAt(0.5), 60);
+    const g = chordPitches({ rootPc: 7, quality: 'maj' }, voicingAt(yForBand(2), 3), 60);
     expect(pcs(g).sort((a, b) => a - b)).toEqual([2, 7, 11]); // G B D
   });
 
   it('always returns ascending pitches', () => {
     for (const q of Object.keys(QUALITY_INTERVALS) as (keyof typeof QUALITY_INTERVALS)[]) {
-      for (const y of [0.05, 0.3, 0.5, 0.7, 0.95]) {
-        const notes = chordPitches({ rootPc: 3, quality: q }, voicingAt(y), 60);
+      for (let b = 0; b < VOICING_BANDS; b++) {
+        const notes = chordPitches({ rootPc: 3, quality: q }, voicingAt(yForBand(b), 3), 60);
         expect(notes).toEqual([...notes].sort((a, b) => a - b));
         expect(notes.length).toBeGreaterThan(0);
       }

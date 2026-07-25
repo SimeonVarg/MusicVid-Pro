@@ -186,67 +186,113 @@ function Violin() {
 }
 
 function Sax() {
-  // Minimal brass: one body tube that curves into the bell, three pearl keys.
+  // Read as a sax by its silhouette: a straight body that bends at the bow into
+  // an angled bell, with the key stack down one side. Built from two rotated
+  // bars and a ring rather than a traced outline.
   return (
-    <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg,#2e2409,#1a1405 60%,#0e0b03)' }}>
+    <div className="absolute inset-0 overflow-hidden" style={{ background: 'linear-gradient(160deg,#2a2109,#181204 60%,#0c0902)' }}>
+      {/* neck + body, tilted like the instrument hangs */}
       <div
-        className="absolute left-[34%] top-[12%] w-[16%]"
+        className="absolute left-[38%] top-[6%] h-[62%] w-[15%] origin-bottom"
         style={{
-          height: '58%',
-          background: 'linear-gradient(100deg,#7d5f16,#e8c65a 32%,#fff3c0 46%,#d9b247 62%,#6f5412)',
-          borderRadius: '4px 4px 0 0',
+          transform: 'rotate(9deg)',
+          background: 'linear-gradient(100deg,#6b5212 0%,#d8b445 26%,#fff2bd 44%,#cfa93c 62%,#5f4810 100%)',
+          borderRadius: '3px 3px 0 0',
         }}
       />
-      {/* the bow into the bell */}
+      {/* the bow: a quarter ring joining body to bell */}
       <div
-        className="absolute left-[34%] top-[62%] h-[26%] w-[42%]"
+        className="absolute left-[30%] top-[54%] h-[34%] w-[34%]"
         style={{
-          background: 'linear-gradient(100deg,#7d5f16,#e8c65a 32%,#fff3c0 46%,#d9b247 62%,#6f5412)',
-          borderRadius: '0 0 0 999px',
-          clipPath: 'polygon(0 0,100% 0,100% 34%,34% 34%,34% 100%,0 100%)',
+          border: '9px solid transparent',
+          borderLeftColor: '#d8b445',
+          borderBottomColor: '#d8b445',
+          borderRadius: '50%',
+          filter: 'brightness(1.05)',
         }}
       />
+      {/* flared bell, opening up and to the right */}
       <div
-        className="absolute right-[12%] top-[54%] h-[22%] w-[22%]"
-        style={{ background: 'linear-gradient(100deg,#6f5412,#e8c65a 40%,#fff3c0 58%,#b8932f)', borderRadius: '50% 50% 46% 46% / 60% 60% 40% 40%' }}
+        className="absolute right-[10%] top-[42%] h-[34%] w-[30%]"
+        style={{
+          transform: 'rotate(-24deg)',
+          background: 'linear-gradient(100deg,#6b5212,#e0bc4d 42%,#fff2bd 60%,#b8932f)',
+          borderRadius: '50% 50% 44% 44% / 62% 62% 38% 38%',
+          boxShadow: 'inset -3px 2px 7px rgba(0,0,0,0.35)',
+        }}
       />
-      {/* pearl keys, evenly spaced on the tube */}
-      {[20, 34, 48].map((t) => (
+      {/* key stack */}
+      {[16, 29, 42, 55].map((t, i) => (
         <div
-          key={t}
-          className="absolute left-[42%] h-[8%] w-[8%] -translate-x-1/2 rounded-full"
-          style={{ top: `${t}%`, background: 'radial-gradient(circle at 34% 28%,#fffefa,#e6e1d1 58%,#b5ae9c)', boxShadow: '0 1px 2px rgba(0,0,0,0.6)' }}
+          key={i}
+          className="absolute h-[7%] w-[7%] rounded-full"
+          style={{
+            top: `${t}%`, left: `${52 + i * 0.8}%`,
+            background: 'radial-gradient(circle at 34% 28%,#fffefa,#e6e1d1 56%,#aca594)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.6)',
+          }}
         />
       ))}
+      {/* mouthpiece */}
+      <div className="absolute left-[37%] top-[3%] h-[7%] w-[11%] rounded-t-sm" style={{ background: 'linear-gradient(180deg,#2b2b2f,#101012)', transform: 'rotate(9deg)' }} />
     </div>
   );
 }
 
 function MalletBars() {
-  // Graduated rosewood bars on two rails. Natural timber, not primary colours,
-  // which is what made the old one read as a toy.
-  const BARS = 11;
+  // A real xylophone has TWO ranks: naturals in front, accidentals raised behind
+  // in the 2-3 grouping of a keyboard. One flat rank was why it read as a toy.
+  const NAT = 10;                                   // naturals, C..E over ~1.5 oct
+  const NAT_PC = [0, 2, 4, 5, 7, 9, 11];
+  // an accidental sits after naturals whose pitch-class is in this set
+  const HAS_SHARP = new Set([0, 2, 5, 7, 9]);
+  const naturals = Array.from({ length: NAT }, (_, i) => NAT_PC[i % 7]);
   return (
-    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,#15120f,#0a0806)' }}>
-      <div className="absolute inset-x-[6%] top-[24%] h-px bg-zinc-500/30" />
-      <div className="absolute inset-x-[6%] bottom-[24%] h-px bg-zinc-500/30" />
-      <div className="absolute inset-x-[6%] inset-y-0 flex items-center gap-[2px]">
-        {Array.from({ length: BARS }).map((_, i) => {
-          const t = i / (BARS - 1);
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,#171310,#0a0806)' }}>
+      {/* frame rails */}
+      <div className="absolute inset-x-[4%] top-[30%] h-px bg-amber-200/15" />
+      <div className="absolute inset-x-[4%] bottom-[12%] h-px bg-amber-200/15" />
+
+      {/* naturals (front rank) */}
+      <div className="absolute inset-x-[4%] bottom-[8%] top-[46%] flex items-end gap-[3px]">
+        {naturals.map((pc, i) => {
+          const t = i / (NAT - 1);
           return (
             <div
               key={i}
-              className="relative flex-1"
+              className="relative flex-1 rounded-[1px]"
               style={{
-                height: `${72 - t * 26}%`,
-                background: 'linear-gradient(180deg,#9c6a3a,#7d5228 48%,#54361a)',
-                boxShadow: 'inset 0 1px 0 rgba(255,214,170,0.28), 0 1px 2px rgba(0,0,0,0.55)',
-                borderRadius: 1,
+                height: `${100 - t * 22}%`,
+                background: 'linear-gradient(180deg,#b07c46,#8d5f2f 45%,#5f3d1d)',
+                boxShadow: 'inset 0 1px 0 rgba(255,222,180,0.3), 0 1px 2px rgba(0,0,0,0.55)',
               }}
             >
-              <div className="absolute left-1/2 top-[18%] h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/50" />
-              <div className="absolute bottom-[18%] left-1/2 h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/50" />
+              <div className="absolute left-1/2 top-[16%] h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/55" />
+              <div className="absolute bottom-[16%] left-1/2 h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black/55" />
             </div>
+          );
+        })}
+      </div>
+
+      {/* accidentals (raised rear rank), gapped where E-F and B-C have none */}
+      <div className="absolute inset-x-[4%] top-[12%] h-[30%]">
+        {naturals.slice(0, -1).map((pc, i) => {
+          if (!HAS_SHARP.has(pc)) return null;
+          const w = 100 / NAT;
+          const t = i / (NAT - 1);
+          return (
+            <div
+              key={i}
+              className="absolute rounded-[1px]"
+              style={{
+                left: `${(i + 1) * w}%`,
+                width: `${w * 0.66}%`,
+                transform: 'translateX(-50%)',
+                height: `${100 - t * 16}%`,
+                background: 'linear-gradient(180deg,#8a5a2d,#6b4220 45%,#432711)',
+                boxShadow: 'inset 0 1px 0 rgba(255,214,170,0.24), 0 2px 3px rgba(0,0,0,0.6)',
+              }}
+            />
           );
         })}
       </div>
@@ -255,42 +301,42 @@ function MalletBars() {
 }
 
 function DrumKit() {
-  // Plan view on a symmetric grid: warm calf-coloured heads and wood hoops so it
-  // reads acoustic, not electronic. Flat and exact rather than rendered.
-  const drum = (cx: number, cy: number, d: number, hoop: string) => (
+  // Oriented from the player's seat, the way a kit is actually photographed:
+  // kick front and centre, snare at your left knee, hats above it, rack toms
+  // over the kick, floor tom right, ride to the right, crash upper left.
+  const head = (cx: number, cy: number, d: number, hoop = '#7a4f2a') => (
     <div
       className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
       style={{
         left: `${cx}%`, top: `${cy}%`, width: `${d}%`, aspectRatio: '1',
-        background: '#efe6d2',
+        background: 'radial-gradient(circle at 42% 34%,#fbf6e9,#e6dcc6 62%,#cabfa6)',
         border: `2px solid ${hoop}`,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+        boxShadow: '0 2px 5px rgba(0,0,0,0.55)',
       }}
-    >
-      <div className="absolute inset-[18%] rounded-full border border-black/10" />
-    </div>
+    />
   );
   const cymbal = (cx: number, cy: number, d: number) => (
     <div
       className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
       style={{
         left: `${cx}%`, top: `${cy}%`, width: `${d}%`, aspectRatio: '1',
-        background: '#c9a63f',
+        background: 'radial-gradient(circle at 46% 42%,#f2dd97,#c2a03a 52%,#8a6c1e)',
         boxShadow: '0 2px 5px rgba(0,0,0,0.5)',
       }}
     >
-      <div className="absolute inset-[30%] rounded-full border border-black/20" />
-      <div className="absolute inset-[46%] rounded-full bg-black/25" />
+      <div className="absolute inset-[38%] rounded-full bg-black/25" />
     </div>
   );
   return (
-    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,#241a14,#140e0a)' }}>
-      {cymbal(15, 30, 26)}
-      {cymbal(85, 30, 22)}
-      {drum(35, 26, 24, '#6b4526')}
-      {drum(62, 25, 22, '#6b4526')}
-      {drum(50, 66, 40, '#6b4526')}
-      {drum(15, 70, 24, '#8a8f96')}
+    <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 100% at 50% 0%,#2c211a,#120c09 72%)' }}>
+      {cymbal(16, 20, 27)}   {/* crash, upper left */}
+      {cymbal(84, 24, 24)}   {/* ride, right */}
+      {cymbal(26, 44, 18)}   {/* hi-hat, left of the snare */}
+      {head(42, 30, 21)}     {/* rack tom 1 */}
+      {head(62, 29, 22)}     {/* rack tom 2 */}
+      {head(84, 62, 26)}     {/* floor tom, right */}
+      {head(30, 68, 24, '#9aa0a8')} {/* snare, chrome hoop, left */}
+      {head(53, 74, 38)}     {/* kick, front and centre */}
     </div>
   );
 }
