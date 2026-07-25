@@ -195,8 +195,9 @@ export function Timeline() {
       return;
     }
 
-    // The cycle lane is loop-only; a click there must not seek the playhead.
-    if (inCycleLane(pointerPosition.y)) {
+    // While cycle is armed the lane is loop-only; a click there must not seek.
+    // With cycle off the strip isn't shown, so clicks fall through to seeking.
+    if (inCycleLane(pointerPosition.y) && timeline.loop) {
       return;
     }
 
@@ -226,8 +227,11 @@ export function Timeline() {
       return;
     }
 
-    // Cycle lane (bottom strip of the ruler): create / move / resize the loop.
-    if (inCycleLane(pointerPosition.y)) {
+    // Cycle lane (bottom strip of the ruler): move / resize an ARMED cycle only.
+    // Cycle is off until the user turns it on in the toolbar — otherwise a stray
+    // click near the bottom of the ruler silently switched cycling on, which read
+    // as "it's on by default and I can't turn it off".
+    if (inCycleLane(pointerPosition.y) && timeline.loop) {
       clearTrackSelection();
       const t = snapLoopTime(xToTime(pointerPosition.x));
       const loop = timeline.loop;
@@ -664,9 +668,14 @@ function CycleRegion({
   const endX = active ? loop!.end * pixelsPerSecond + scrollX : 0;
   return (
     <Group clip={{ x: 0, y: 0, width: viewportWidth, height: fullHeight }} listening={false}>
-      {/* Always-present cycle lane so the loop control is discoverable */}
-      <Rect x={0} y={cycleY} width={viewportWidth} height={laneH} fill={SIGNAL} opacity={0.05} />
-      <Line points={[0, cycleY + 0.5, viewportWidth, cycleY + 0.5]} stroke={SIGNAL} strokeWidth={1} opacity={0.18} />
+      {/* The cycle lane only exists while cycle is armed (toolbar toggle). Off by
+          default, so nothing here can be switched on by a stray ruler click. */}
+      {active && (
+        <>
+          <Rect x={0} y={cycleY} width={viewportWidth} height={laneH} fill={SIGNAL} opacity={0.05} />
+          <Line points={[0, cycleY + 0.5, viewportWidth, cycleY + 0.5]} stroke={SIGNAL} strokeWidth={1} opacity={0.18} />
+        </>
+      )}
       {active && (
         <>
           {/* Full-height tint over the tracks so you see exactly what repeats */}

@@ -15,7 +15,7 @@
  * (volume, mute, solo) inline; Video mode keeps the row quiet (mute + lock only).
  */
 import React from 'react';
-import { Music, Video, Type, Piano, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { Music, Video, Type, Piano, Lock, Unlock, VolumeX, Plus } from 'lucide-react';
 import { useEditorStore, showsAudioTools } from '@/stores/editorStore';
 import { getInstrument } from '@/lib/midi/instruments';
 import { trackRowTop, RULER_HEIGHT, H_SCROLLBAR_HEIGHT } from '@/lib/utils/timelineLayout';
@@ -205,8 +205,20 @@ export function TrackHeaders({
             />
           ))}
         </div>
+        {/* New-track button, directly under the last row — the natural place to
+            reach for it now that headers stack vertically with the lanes. */}
+        <button
+          onClick={() => setInstrumentPickerOpen(true)}
+          title="Add a track"
+          className="absolute inset-x-2 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 py-2 text-[11px] font-medium text-zinc-500 transition-colors hover:border-signal-400/50 hover:bg-signal-400/5 hover:text-signal-300"
+          style={{ top: tracks.length * trackHeight - verticalScroll + 8 }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New track
+        </button>
+
         {tracks.length === 0 && (
-          <p className="px-3 pt-6 text-center text-[11px] leading-relaxed text-zinc-600">
+          <p className="pointer-events-none px-3 pt-16 text-center text-[11px] leading-relaxed text-zinc-600">
             Tracks appear here,<br />lined up with their clips.
           </p>
         )}

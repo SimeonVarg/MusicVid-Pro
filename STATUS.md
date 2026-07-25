@@ -1,5 +1,47 @@
 # MusicVid Pro — Status (July 24, 2026: cycle-region loop, mode layout split)
 
+## Round 12 (July 24): studio cards, real instrument art, cycle off by default
+
+Owner batch: cards not rows; graphics "too simple"/"crappy SVGs" (piano black keys
+off-centre, bass+guitar "a mangled mess", xylo "looks like a toy"); cycle shouldn't
+be on by default; mallet/concert/aux percussion menus; "+" under the aligned tracks.
+
+Done here:
+- **Instrument art rebuilt** (`InstrumentArt.tsx`). Portraits are layered CSS with
+  *derived* geometry, not eyeballed SVG paths — that was the root cause of the
+  mangled look. Piano black keys are placed at the real semitone boundaries
+  (after C,D,F,G,A) and centred with translateX(-50%); **measured in-browser at
+  0.09–0.54px from the true boundary, correctly skipping the E–F gap.** Fretboards
+  use real exponential fret spacing (1/2^(n/12)) so frets crowd toward the bridge,
+  with tapered string gauges. Xylophone is graduated rosewood bars with rails and
+  cord holes (no primary-colour toy stripes). Sax gets brass sheen + pearl keys;
+  kit gets mylar heads with rim glints; CR-78 gets a cream faceplate with wood
+  cheeks and a red LED.
+- **Cards, not rows.** Grid of portrait cards (auto-fill, 210px min) grouped into
+  named sections with blurbs: Keyboards / Guitars & Bass / Strings & Winds /
+  Mallet Percussion / Drum Kits / Rhythm Machines / Synths. Categories are data
+  (`CATEGORIES`), so adding an instrument is a one-line edit.
+- **Cycle no longer arms itself.** Root cause: the cycle lane was always drawn and
+  ANY mousedown in the ruler's bottom strip called `setLoop(...)` — so a stray
+  ruler click switched cycling on and it read as "on by default". Now the lane is
+  only drawn and only interactive while cycle is armed, and the toolbar button is
+  a labelled ON/OFF toggle (`aria-pressed`, signal ring when on).
+- **"+ New track"** button under the last header row in the gutter.
+
+NOT done in this round (needs its own pass):
+1. **Guitar/bass fretboard surfaces** + a toggle back to keyboard for recording.
+2. **Chord feature** (GarageBand-style: inversion/voicing by click position,
+   strum settings, custom chord selector — maj/min/7ths/add9/sus4/dim/aug/alt).
+3. **Concert + aux percussion menus, and more mallets.** BLOCKED ON SAMPLES: only
+   8 sample folders are vendored (piano, bass-electric, guitar-acoustic, violin,
+   saxophone, xylophone, drums-acoustic, drums-cr78). Marimba, vibraphone,
+   glockenspiel, timpani, congas, shakers, tambourine have no recordings here, and
+   faking them with synths violates the real-samples rule. Needs sourcing +
+   licence check before those menus can be real. The picker says so in-product.
+
+Verify: tsc clean, suite 272/272, production build clean (`/editor` 179 kB), no
+console errors, card grid + categories confirmed rendering in the built app.
+
 ## Round 11 (July 24): Instrument Studio (studio-rack picker + playable + record)
 
 Owner: "beats mode add audio and instrument should be more fun and interactive …

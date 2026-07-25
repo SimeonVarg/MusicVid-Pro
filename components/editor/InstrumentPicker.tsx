@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Plus, Trash2 } from 'lucide-react';
+import { InstrumentArt } from './InstrumentArt';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { useEditorStore } from '@/stores/editorStore';
 import { INSTRUMENTS, getInstrument } from '@/lib/midi/instruments';
@@ -26,24 +27,34 @@ import { midiPlaybackEngine } from '@/lib/midi/playbackEngine';
 import { secondsToBeats, type MidiNote } from '@/lib/midi/noteUtils';
 import { AudioContextManager } from '@/lib/audio/audioContextManager';
 
-// ── Per-instrument identity: material (panel), accent, motif, tagline ──────────
-type Motif = 'keys' | 'wood' | 'strings' | 'brass' | 'bars' | 'pads' | 'buttons' | 'synth';
-interface Skin { accent: string; panel: string; motif: Motif; tagline: string }
+// ── Per-instrument identity: accent, panel material, tagline ──────────────────
+interface Skin { accent: string; panel: string; tagline: string }
 
 const SKIN: Record<string, Skin> = {
-  'piano':            { accent: '#e8c579', motif: 'keys',    tagline: 'Salamander concert grand',  panel: 'linear-gradient(145deg,#1c1c20,#0d0d10 58%,#050506)' },
-  'bass-electric':    { accent: '#d99b57', motif: 'wood',    tagline: 'Fingered electric bass',    panel: 'linear-gradient(150deg,#3d2917,#241509 55%,#150c05)' },
-  'guitar-acoustic':  { accent: '#e0a765', motif: 'wood',    tagline: 'Steel-string acoustic',     panel: 'linear-gradient(150deg,#5b3e21,#3a2712 55%,#231607)' },
-  'violin':           { accent: '#cf7361', motif: 'strings', tagline: 'Solo violin, arco',         panel: 'linear-gradient(150deg,#4c201a,#2e120f 55%,#1b0908)' },
-  'saxophone':        { accent: '#f0c94a', motif: 'brass',   tagline: 'Alto saxophone',            panel: 'linear-gradient(150deg,#4c3c12,#2c2208 55%,#191305)' },
-  'xylophone':        { accent: '#5ec8c0', motif: 'bars',    tagline: 'Concert xylophone',         panel: 'linear-gradient(150deg,#17262b,#0d181c 60%,#060d10)' },
-  'drums-acoustic':   { accent: '#e5675f', motif: 'pads',    tagline: 'Acoustic drum kit',         panel: 'linear-gradient(150deg,#27272c,#161619 60%,#0a0a0c)' },
-  'drums-cr78':       { accent: '#f08a3c', motif: 'buttons', tagline: 'CR-78 rhythm box',          panel: 'linear-gradient(150deg,#3b3427,#2a251b 55%,#191510)' },
-  'synth-lead':       { accent: '#a3d924', motif: 'synth',   tagline: 'Analog-style lead',         panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
-  'synth-bass':       { accent: '#84cc16', motif: 'synth',   tagline: 'FM sub bass',               panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
-  'synth-pad':        { accent: '#7fb3ff', motif: 'synth',   tagline: 'Warm saw pad',              panel: 'linear-gradient(150deg,#161b27,#0e1119 60%,#080a10)' },
+  'piano':            { accent: '#e8c579', tagline: 'Salamander concert grand',  panel: 'linear-gradient(145deg,#1c1c20,#0d0d10 58%,#050506)' },
+  'bass-electric':    { accent: '#d99b57', tagline: 'Fingered electric bass',    panel: 'linear-gradient(150deg,#3d2917,#241509 55%,#150c05)' },
+  'guitar-acoustic':  { accent: '#e0a765', tagline: 'Steel-string acoustic',     panel: 'linear-gradient(150deg,#5b3e21,#3a2712 55%,#231607)' },
+  'violin':           { accent: '#cf7361', tagline: 'Solo violin, arco',         panel: 'linear-gradient(150deg,#4c201a,#2e120f 55%,#1b0908)' },
+  'saxophone':        { accent: '#f0c94a', tagline: 'Alto saxophone',            panel: 'linear-gradient(150deg,#4c3c12,#2c2208 55%,#191305)' },
+  'xylophone':        { accent: '#c98b4b', tagline: 'Rosewood concert xylophone', panel: 'linear-gradient(150deg,#241a12,#150f0a 60%,#0a0705)' },
+  'drums-acoustic':   { accent: '#e5675f', tagline: 'Acoustic drum kit',         panel: 'linear-gradient(150deg,#27272c,#161619 60%,#0a0a0c)' },
+  'drums-cr78':       { accent: '#f08a3c', tagline: 'CR-78 rhythm box',          panel: 'linear-gradient(150deg,#3b3427,#2a251b 55%,#191510)' },
+  'synth-lead':       { accent: '#a3d924', tagline: 'Analog-style lead',         panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
+  'synth-bass':       { accent: '#84cc16', tagline: 'FM sub bass',               panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
+  'synth-pad':        { accent: '#7fb3ff', tagline: 'Warm saw pad',              panel: 'linear-gradient(150deg,#161b27,#0e1119 60%,#080a10)' },
 };
 const skinFor = (id: string): Skin => SKIN[id] ?? SKIN['piano'];
+
+/** Studio sections. Instruments are listed by id so adding one is a data edit. */
+const CATEGORIES: { key: string; label: string; blurb: string; ids: string[] }[] = [
+  { key: 'keys',    label: 'Keyboards',         blurb: 'Pianos and keyed instruments',      ids: ['piano'] },
+  { key: 'guitars', label: 'Guitars & Bass',    blurb: 'Fretted, played on a fretboard',    ids: ['guitar-acoustic', 'bass-electric'] },
+  { key: 'orch',    label: 'Strings & Winds',   blurb: 'Bowed and blown',                   ids: ['violin', 'saxophone'] },
+  { key: 'mallets', label: 'Mallet Percussion', blurb: 'Tuned bars, struck with mallets',   ids: ['xylophone'] },
+  { key: 'kits',    label: 'Drum Kits',         blurb: 'Played on pads',                    ids: ['drums-acoustic'] },
+  { key: 'boxes',   label: 'Rhythm Machines',   blurb: 'Vintage drum machines',             ids: ['drums-cr78'] },
+  { key: 'synths',  label: 'Synths',            blurb: 'Generated, not sampled',            ids: ['synth-lead', 'synth-bass', 'synth-pad'] },
+];
 
 const kindLabel = (kind: string) => (kind === 'drums' ? 'RHYTHM' : kind === 'synth' ? 'SYNTH' : 'SAMPLED');
 
@@ -63,91 +74,6 @@ const KEYMAP: Record<string, number> = {
 };
 
 const WHITE_PC = new Set([0, 2, 4, 5, 7, 9, 11]);
-
-/** A tiny, material-driven motif so each rack unit is visually distinct. */
-function Motif({ kind, accent }: { kind: Motif; accent: string }) {
-  const box = 'relative h-11 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-black/50 shadow-inner';
-  switch (kind) {
-    case 'keys':
-      return (
-        <div className={`${box} bg-gradient-to-b from-zinc-100 to-zinc-300`}>
-          <div className="absolute inset-x-0 bottom-0 top-1.5 flex">
-            {[0, 1, 2, 3, 4].map((i) => <div key={i} className="flex-1 border-r border-zinc-400/70" />)}
-          </div>
-          {[18, 40, 74, 92].map((l, i) => (
-            <div key={i} className="absolute top-1.5 h-6 w-1.5 rounded-b bg-zinc-900" style={{ left: `${l}%` }} />
-          ))}
-        </div>
-      );
-    case 'wood':
-      return (
-        <div className={box} style={{ background: 'repeating-linear-gradient(180deg,#6b4a28,#6b4a28 2px,#5a3d20 3px,#4a3119 5px)' }}>
-          <div className="absolute inset-y-2 left-1/2 flex -translate-x-1/2 gap-[3px]">
-            {[0, 1, 2, 3].map((i) => <div key={i} className="w-[2px] rounded bg-zinc-200/70" />)}
-          </div>
-        </div>
-      );
-    case 'strings':
-      return (
-        <div className={box} style={{ background: 'linear-gradient(180deg,#6a2a22,#3a1512)' }}>
-          <div className="absolute inset-y-1 left-1/2 flex -translate-x-1/2 gap-[4px]">
-            {[0, 1, 2, 3].map((i) => <div key={i} className="w-px bg-zinc-200/60" />)}
-          </div>
-          <div className="absolute bottom-1 left-2 h-3 w-1 rotate-12 rounded-full" style={{ background: accent, opacity: 0.7 }} />
-          <div className="absolute bottom-1 right-2 h-3 w-1 -rotate-12 rounded-full" style={{ background: accent, opacity: 0.7 }} />
-        </div>
-      );
-    case 'brass':
-      return (
-        <div className={box} style={{ background: 'linear-gradient(135deg,#caa63a,#8a6f1e 55%,#5c4a12)' }}>
-          <div className="absolute right-1.5 top-1.5 flex flex-col gap-1.5">
-            {[0, 1, 2].map((i) => <div key={i} className="h-2.5 w-2.5 rounded-full bg-zinc-900/70 ring-1 ring-zinc-100/30" />)}
-          </div>
-        </div>
-      );
-    case 'bars':
-      return (
-        <div className={`${box} bg-zinc-900`}>
-          <div className="absolute inset-1.5 flex flex-col justify-between">
-            {['#f0653f', '#f0a83f', '#e8d23f', '#5ec860', '#5ec8c0', '#5e8fc8'].map((c, i) => (
-              <div key={i} className="h-1 rounded" style={{ background: c, width: `${95 - i * 9}%` }} />
-            ))}
-          </div>
-        </div>
-      );
-    case 'pads':
-      return (
-        <div className={`${box} bg-zinc-900 p-1`}>
-          <div className="grid h-full grid-cols-3 grid-rows-2 gap-[3px]">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-[3px] bg-gradient-to-b from-zinc-700 to-zinc-800 ring-1 ring-black/40" />
-            ))}
-          </div>
-        </div>
-      );
-    case 'buttons':
-      return (
-        <div className={box} style={{ background: 'linear-gradient(180deg,#d9cba8,#b8a980)' }}>
-          <div className="absolute left-1.5 right-1.5 top-2 flex justify-between">
-            {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-2.5 w-2 rounded-[2px] bg-zinc-800/80" />)}
-          </div>
-          <div className="absolute bottom-1.5 left-1.5 h-2 w-2 rounded-full" style={{ background: accent, boxShadow: `0 0 6px ${accent}` }} />
-          <div className="absolute bottom-2 right-2 h-1 w-6 rounded bg-zinc-800/60" />
-        </div>
-      );
-    case 'synth':
-      return (
-        <div className={`${box} bg-zinc-900`}>
-          <div className="absolute left-2 top-2 h-6 w-6 rounded-full ring-2 ring-zinc-600" style={{ background: 'conic-gradient(from 220deg,#3f3f46,#18181b)' }}>
-            <div className="absolute left-1/2 top-1 h-2 w-[2px] -translate-x-1/2 rounded" style={{ background: accent }} />
-          </div>
-          <div className="absolute inset-y-2 right-2 flex flex-col justify-between">
-            {[0, 1, 2].map((i) => <div key={i} className="h-[3px] w-6 rounded bg-zinc-700"><div className="h-full rounded" style={{ width: `${40 + i * 20}%`, background: accent }} /></div>)}
-          </div>
-        </div>
-      );
-  }
-}
 
 // ── Playable surfaces ─────────────────────────────────────────────────────────
 function Keyboard({ startPitch, lit, onDown, onUp }: {
@@ -427,11 +353,10 @@ export function InstrumentPicker() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, [instrumentPickerOpen, selectedId, isDrum, startPitch, noteOn, noteOff]);
 
-  const groups = [
-    { label: 'Instruments', items: INSTRUMENTS.filter((i) => i.kind === 'sampler') },
-    { label: 'Drums & machines', items: INSTRUMENTS.filter((i) => i.kind === 'drums') },
-    { label: 'Synths', items: INSTRUMENTS.filter((i) => i.kind === 'synth') },
-  ];
+  const groups = CATEGORIES.map((c) => ({
+    ...c,
+    items: c.ids.map((id) => INSTRUMENTS.find((i) => i.id === id)).filter(Boolean) as typeof INSTRUMENTS,
+  })).filter((c) => c.items.length > 0);
 
   const playing = lit.size > 0;
 
@@ -449,50 +374,53 @@ export function InstrumentPicker() {
             </div>
             <div className="overflow-y-auto px-6 py-5 scrollbar-thin" style={{ maxHeight: '72vh' }}>
               {groups.map((group) => (
-                <div key={group.label} className="mb-5 last:mb-0">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{group.label}</span>
-                    {group.label === 'Synths' && <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-500">extras</span>}
+                <div key={group.key} className="mb-6 last:mb-0">
+                  <div className="mb-2.5 flex items-baseline gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{group.label}</span>
+                    <span className="text-[11px] text-zinc-600">{group.blurb}</span>
                     <div className="h-px flex-1 bg-zinc-800/70" />
                   </div>
-                  <div className="space-y-2.5">
+                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))' }}>
                     {group.items.map((inst) => {
                       const s = skinFor(inst.id);
                       return (
                         <button
                           key={inst.id}
                           onClick={() => setSelectedId(inst.id)}
-                          className="group relative flex w-full items-stretch overflow-hidden rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.4)] ring-1 ring-black/60 transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
+                          className="group relative overflow-hidden rounded-xl text-left ring-1 ring-black/70 transition-all duration-150 hover:-translate-y-0.5 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
+                          style={{ background: s.panel, boxShadow: '0 6px 20px rgba(0,0,0,0.45)' }}
                         >
-                          {/* mounting ear */}
-                          <div className="flex w-4 shrink-0 flex-col items-center justify-between bg-gradient-to-b from-zinc-700 to-zinc-900 py-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-zinc-950 ring-1 ring-zinc-600" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-zinc-950 ring-1 ring-zinc-600" />
+                          {/* instrument portrait */}
+                          <div className="relative h-[104px] overflow-hidden border-b border-black/60">
+                            <InstrumentArt id={inst.id} accent={s.accent} />
+                            {/* glass sheen */}
+                            <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(160deg,rgba(255,255,255,0.10),transparent 42%)' }} />
+                            <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100" style={{ background: `radial-gradient(120% 80% at 50% 120%, ${s.accent}33, transparent 70%)` }} />
                           </div>
-                          {/* face */}
-                          <div className="relative flex flex-1 items-center gap-4 px-4 py-3" style={{ background: s.panel }}>
-                            <Motif kind={s.motif} accent={s.accent} />
+                          {/* plate */}
+                          <div className="flex items-center gap-2 px-3 py-2.5">
                             <div className="min-w-0 flex-1">
-                              <div className="truncate text-[15px] font-semibold tracking-tight text-white" style={{ textShadow: '0 1px 0 rgba(0,0,0,0.55)' }}>{inst.label}</div>
-                              <div className="mt-0.5 truncate text-[11px] text-white/45">{s.tagline}</div>
+                              <div className="truncate text-[13px] font-semibold tracking-tight text-zinc-50">{inst.label}</div>
+                              <div className="mt-0.5 truncate text-[11px] text-zinc-500">{s.tagline}</div>
                             </div>
-                            <div className="hidden items-center gap-3 pr-1 sm:flex">
-                              <span className="rounded-md border border-black/50 bg-black/50 px-2 py-1 font-mono text-[10px] tracking-wider" style={{ color: s.accent }}>{kindLabel(inst.kind)}</span>
-                              <span className="h-2 w-2 rounded-full" style={{ background: s.accent, boxShadow: `0 0 6px ${s.accent}` }} />
-                            </div>
-                            <span className="absolute bottom-2 right-3 text-[11px] font-medium text-white/0 transition-colors group-hover:text-white/70">Play ▸</span>
+                            <span className="shrink-0 rounded border border-black/50 bg-black/40 px-1.5 py-0.5 font-mono text-[9px] tracking-wider" style={{ color: s.accent }}>
+                              {kindLabel(inst.kind)}
+                            </span>
                           </div>
-                          {/* mounting ear */}
-                          <div className="flex w-4 shrink-0 flex-col items-center justify-between bg-gradient-to-b from-zinc-700 to-zinc-900 py-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-zinc-950 ring-1 ring-zinc-600" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-zinc-950 ring-1 ring-zinc-600" />
-                          </div>
+                          <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/0 backdrop-blur-sm transition-colors group-hover:text-white/85">
+                            Play
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               ))}
+              <p className="mt-2 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                Concert and auxiliary percussion (timpani, congas, shakers, tambourine) and more mallets
+                (marimba, vibraphone, glockenspiel) need real samples vendored before they can appear here —
+                every instrument in this studio plays actual recordings, never a synth stand-in.
+              </p>
             </div>
           </div>
         ) : (

@@ -187,14 +187,19 @@ export function Toolbar() {
             {audioTools && (
               <Button
                 variant="ghost"
-                size="icon"
-                className={`h-8 w-8 ${timeline.loop ? 'text-signal-400' : ''}`}
+                size="sm"
+                aria-pressed={!!timeline.loop}
+                className={`h-8 gap-1.5 px-2 ${
+                  timeline.loop
+                    ? 'bg-signal-400/15 text-signal-300 ring-1 ring-signal-400/50 hover:bg-signal-400/20'
+                    : 'text-zinc-400'
+                }`}
                 title={
                   timeline.loop
-                    ? 'Cycle on — playback repeats this region. Click to turn off.'
+                    ? 'Cycle ON — playback repeats the highlighted region. Click to turn off.'
                     : selectedRegion && selectedRegion.end > selectedRegion.start
-                      ? 'Cycle the selected region (loops playback over it)'
-                      : 'Cycle playback (loops the whole timeline)'
+                      ? 'Cycle OFF — click to repeat playback over the selected region'
+                      : 'Cycle OFF — click to repeat playback over a region'
                 }
                 onClick={() => {
                   if (timeline.loop) { setLoop(null); return; }
@@ -208,6 +213,9 @@ export function Toolbar() {
                 }}
               >
                 <Repeat className="h-3.5 w-3.5" />
+                <span className="hidden text-[11px] font-semibold lg:inline">
+                  Cycle{timeline.loop ? '' : ''}
+                </span>
               </Button>
             )}
           </div>
