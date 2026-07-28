@@ -15,8 +15,9 @@
  * (volume, mute, solo) inline; Video mode keeps the row quiet (mute + lock only).
  */
 import React from 'react';
-import { Music, Video, Type, Piano, Lock, Unlock, VolumeX, Plus } from 'lucide-react';
+import { Music, Video, Type, Piano, Lock, Unlock, VolumeX, Plus, Mic } from 'lucide-react';
 import { useEditorStore, showsAudioTools } from '@/stores/editorStore';
+import { useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
 import { getInstrument } from '@/lib/midi/instruments';
 import { trackRowTop, RULER_HEIGHT, H_SCROLLBAR_HEIGHT } from '@/lib/utils/timelineLayout';
 
@@ -166,7 +167,28 @@ export function TrackHeaders({
   const selectedTrackIds = useEditorStore((s) => s.selectedTrackIds);
   const mode = useEditorStore((s) => s.mode);
   const setInstrumentPickerOpen = useEditorStore((s) => s.setInstrumentPickerOpen);
+  const addAudioTrack = useEditorStore((s) => s.addAudioTrack);
   const audioTools = showsAudioTools(mode);
+  const addMenu = useContextMenu();
+
+  // One place to add a track. Beats mode hides the media panel entirely, so this
+  // button has to cover instrument AND audio rather than sending you hunting
+  // through a second column that did the same job.
+  const pickAudioFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'audio/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) await addAudioTrack(file);
+    };
+    input.click();
+  };
+
+  const addItems = (): MenuItem[] => [
+    { label: 'Instrument', icon: Piano, onSelect: () => setInstrumentPickerOpen(true) },
+    { label: 'Audio file', icon: Music, onSelect: pickAudioFile },
+  ];
 
   return (
     <div
@@ -182,8 +204,8 @@ export function TrackHeaders({
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Tracks</span>
         {audioTools && (
           <button
-            onClick={() => setInstrumentPickerOpen(true)}
-            title="Add instrument - open the studio"
+            onClick={(e) => addMenu.open(e, addItems())}
+            title="Add a track"
             className="rounded border border-zinc-700 bg-zinc-800/80 px-1.5 py-0.5 text-[11px] font-bold leading-none text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
           >
             +
@@ -208,7 +230,7 @@ export function TrackHeaders({
         {/* New-track button, directly under the last row - the natural place to
             reach for it now that headers stack vertically with the lanes. */}
         <button
-          onClick={() => setInstrumentPickerOpen(true)}
+          onClick={(e) => addMenu.open(e, addItems())}
           title="Add a track"
           className="absolute inset-x-2 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/40 py-2 text-[11px] font-medium text-zinc-500 transition-colors hover:border-signal-400/50 hover:bg-signal-400/5 hover:text-signal-300"
           style={{ top: tracks.length * trackHeight - verticalScroll + 8 }}
@@ -226,6 +248,7 @@ export function TrackHeaders({
 
       {/* Scrollbar-tray spacer so the last row clears the bottom tray */}
       <div className="shrink-0" style={{ height: H_SCROLLBAR_HEIGHT }} />
+      {addMenu.node}
     </div>
   );
 }

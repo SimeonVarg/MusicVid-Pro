@@ -67,7 +67,7 @@ export function Fretboard({
 
   return (
     <div
-      className="relative mx-auto w-full max-w-4xl select-none overflow-hidden rounded-lg ring-1 ring-black/70"
+      className="relative mx-auto w-full min-w-[560px] max-w-4xl select-none overflow-hidden rounded-lg ring-1 ring-black/70"
       style={{ height: 44 + strings.length * 26, background: 'linear-gradient(175deg,#3a2413,#22150a 60%,#150d05)', touchAction: 'none' }}
     >
       {/* open-string strip, then the nut. Fret 0 needs real estate of its own -
@@ -191,7 +191,7 @@ export function ChordPads({
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-4xl grid-cols-4 gap-2.5 sm:grid-cols-8" style={{ touchAction: 'none' }}>
+    <div className="mx-auto grid w-full min-w-[320px] max-w-4xl grid-cols-4 gap-2 sm:grid-cols-8 sm:gap-2.5" style={{ touchAction: 'none' }}>
       {chords.map((chord, i) => {
         const on = activeIndex === i;
         return (
@@ -203,7 +203,7 @@ export function ChordPads({
             onMouseLeave={onChordUp}
             onTouchStart={(e) => { e.preventDefault(); press(i, e.touches[0].clientY); }}
             onTouchEnd={(e) => { e.preventDefault(); onChordUp(); }}
-            className="relative flex h-64 flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
+            className="relative flex h-52 flex-col sm:h-64 md:h-72 lg:h-80 xl:h-96 2xl:h-[28rem] flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
             style={{
               background: on
                 ? 'linear-gradient(180deg,#c9f24d,#8fbf16)'

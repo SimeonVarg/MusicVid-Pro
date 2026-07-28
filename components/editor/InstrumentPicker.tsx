@@ -464,18 +464,18 @@ export function InstrumentPicker() {
 
   return (
     <Dialog open={instrumentPickerOpen} onOpenChange={(o) => { if (!o) setInstrumentPickerOpen(false); }}>
-      <DialogContent className="max-w-none !p-0 w-[min(1040px,95vw)] h-[90vh] overflow-hidden border-zinc-800 bg-[#09090b]">
+      <DialogContent className="max-w-none !p-0 w-screen h-[100dvh] rounded-none sm:w-[min(1040px,95vw)] sm:h-[90vh] sm:rounded-lg overflow-hidden border-zinc-800 bg-[#09090b]">
         <DialogTitle className="sr-only">{selectedId ? `Play ${def!.label}` : 'Instrument Studio'}</DialogTitle>
         {!selectedId ? (
           // ── Rack browse ──────────────────────────────────────────────────
           <div className="flex h-full flex-col">
-            <div className="border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-[#09090b] px-6 pb-4 pt-6">
+            <div className="border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-[#09090b] px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-signal-400">Instrument Studio</p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-zinc-50">Pick your sound</h2>
               <p className="mt-1 text-sm text-zinc-400">Real recorded instruments. Open one to play it, record a take, and drop it on the timeline.</p>
             </div>
-            <div className="overflow-y-auto px-6 py-5 scrollbar-thin" style={{ flex: 1 }}>
-              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))' }}>
+            <div className="overflow-y-auto px-4 py-4 scrollbar-thin sm:px-6 sm:py-5" style={{ flex: 1 }}>
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(148px,1fr))' }}>
                 {INSTRUMENTS.map((inst) => {
                   const s = skinFor(inst.id);
                   return (
@@ -537,7 +537,7 @@ export function InstrumentPicker() {
             {/* Surface switcher - a guitar opens on a neck, not a keyboard, and
                 any pitched instrument can switch to smart chords. */}
             {!isDrum && (
-              <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-950/60 px-5 py-2">
+              <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-950/60 px-3 py-2 sm:px-5">
                 <div className="flex items-center gap-0.5 rounded-lg border border-zinc-800 bg-zinc-900/70 p-0.5">
                   {([
                     ...(TUNINGS[selectedId!] ? [{ id: 'fret' as const, label: isBass ? 'Bass' : 'Guitar' }] : []),
@@ -667,7 +667,7 @@ export function InstrumentPicker() {
               </div>
             )}
 
-            <div className="bg-[#0a0a0c] px-5 py-7">
+            <div className="overflow-x-auto bg-[#0a0a0c] px-3 py-5 sm:px-5 sm:py-7">
               {isDrum ? (
                 <Pads lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
               ) : surface === 'chords' ? (
@@ -696,7 +696,7 @@ export function InstrumentPicker() {
             </div>
 
             {/* Transport */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 bg-zinc-900/80 px-5 py-3">
+            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 bg-zinc-900/80 px-3 py-2.5 sm:px-5 sm:py-3">
               <button
                 onClick={() => (isRecording || countIn !== null ? stopRecording() : startRecording())}
                 className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${

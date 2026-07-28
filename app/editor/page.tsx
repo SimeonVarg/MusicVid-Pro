@@ -147,6 +147,10 @@ export default function EditorPage() {
   // Beats mode is a DAW: the video monitor is pure noise, so it disappears and the
   // arrangement (timeline + tracks) fills the workspace. Video & Hybrid keep it.
   const showPreviewPane = mode !== 'daw';
+  // Beats mode: the track gutter's "+" already adds instruments and audio, and
+  // Record lives on the right, so a second column that only adds tracks is pure
+  // duplication. Hide it there.
+  const showMediaPanel = mode !== 'daw';
 
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
   const isAdjustingBpm = useEditorStore((s) => s.isAdjustingBpm);
@@ -182,15 +186,20 @@ export default function EditorPage() {
         <SessionRestoreBanner />
 
         <div className="flex flex-1 overflow-hidden">
-          {/* ── TrackList ── */}
-          <div
-            className="flex-shrink-0 overflow-hidden border-r border-zinc-800 bg-zinc-900"
-            style={{ width: trackList.size, maxWidth: '28vw' }}
-          >
-            <TrackList />
-          </div>
-
-          <ResizeDivider direction="horizontal" onMouseDown={trackList.onMouseDown} />
+          {/* ── Media library (hidden in Beats: the gutter "+" covers it) ── */}
+          {showMediaPanel && (
+            <>
+              <div
+                className="hidden flex-shrink-0 overflow-hidden border-r border-zinc-800 bg-zinc-900 md:block"
+                style={{ width: trackList.size, maxWidth: '28vw' }}
+              >
+                <TrackList />
+              </div>
+              <div className="hidden md:block">
+                <ResizeDivider direction="horizontal" onMouseDown={trackList.onMouseDown} />
+              </div>
+            </>
+          )}
 
           {/* ── Main area ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -232,11 +241,13 @@ export default function EditorPage() {
             </div>
           </div>
 
-          <ResizeDivider direction="horizontal" onMouseDown={inspector.onMouseDown} />
+          <div className="hidden md:block">
+            <ResizeDivider direction="horizontal" onMouseDown={inspector.onMouseDown} />
+          </div>
 
           {/* ── Inspector ── */}
           <div
-            className="flex-shrink-0 overflow-hidden border-l border-zinc-800 bg-zinc-900"
+            className="hidden flex-shrink-0 overflow-hidden border-l border-zinc-800 bg-zinc-900 md:block"
             style={{ width: inspectorWidth, maxWidth: inspectorCollapsed ? undefined : '32vw' }}
           >
             <InspectorPanel />
