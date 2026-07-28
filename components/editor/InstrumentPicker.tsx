@@ -22,7 +22,7 @@ import { ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import { InstrumentArt } from './InstrumentArt';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { useEditorStore } from '@/stores/editorStore';
-import { INSTRUMENTS, getInstrument } from '@/lib/midi/instruments';
+import { INSTRUMENTS, getInstrument, drumPads, FAMILY_LABEL, FAMILY_ORDER } from '@/lib/midi/instruments';
 import { Fretboard, ChordPads, TUNINGS } from './PlaySurfaces';
 import {
   type Chord, type ChordQuality, type StrumDirection,
@@ -47,6 +47,17 @@ const SKIN: Record<string, Skin> = {
   'synth-lead':       { accent: '#a3d924', tagline: 'Analog-style lead',         panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
   'synth-bass':       { accent: '#84cc16', tagline: 'FM sub bass',               panel: 'linear-gradient(150deg,#152220,#0d1615 60%,#070c0b)' },
   'synth-pad':        { accent: '#7fb3ff', tagline: 'Warm saw pad',              panel: 'linear-gradient(150deg,#161b27,#0e1119 60%,#080a10)' },
+  'cello':            { accent: '#c96a4a', tagline: 'Cello, arco',                panel: 'linear-gradient(150deg,#432014,#2a120c 55%,#180907)' },
+  'contrabass':       { accent: '#a85c3f', tagline: 'Double bass, arco',          panel: 'linear-gradient(150deg,#3a1d12,#24110a 55%,#150806)' },
+  'harp':             { accent: '#dfc27a', tagline: 'Concert harp',               panel: 'linear-gradient(150deg,#3a2f18,#241c0e 55%,#150f07)' },
+  'flute':            { accent: '#b9c6d6', tagline: 'Concert flute',              panel: 'linear-gradient(150deg,#1e242c,#141920 55%,#0b0e12)' },
+  'clarinet':         { accent: '#6f7f9c', tagline: 'B-flat clarinet',            panel: 'linear-gradient(150deg,#1a1d26,#111318 55%,#08090c)' },
+  'bassoon':          { accent: '#b07a4a', tagline: 'Bassoon',                    panel: 'linear-gradient(150deg,#33220f,#20150a 55%,#120b05)' },
+  'trumpet':          { accent: '#f0c94a', tagline: 'B-flat trumpet',             panel: 'linear-gradient(150deg,#463714,#2b2109 55%,#181205)' },
+  'trombone':         { accent: '#e0b743', tagline: 'Tenor trombone',             panel: 'linear-gradient(150deg,#40330f,#282007 55%,#161104)' },
+  'french-horn':      { accent: '#d9a648', tagline: 'French horn',                panel: 'linear-gradient(150deg,#3c2f13,#251d0a 55%,#150f05)' },
+  'tuba':             { accent: '#c9a04a', tagline: 'Tuba',                       panel: 'linear-gradient(150deg,#382c12,#221a09 55%,#130e05)' },
+  'perc-aux':         { accent: '#d98a5a', tagline: 'Congas, shakers, cymbals',   panel: 'linear-gradient(150deg,#2b2119,#1a1310 60%,#0d0908)' },
 };
 const skinFor = (id: string): Skin => SKIN[id] ?? SKIN['piano'];
 
@@ -63,15 +74,10 @@ const CATEGORIES: { key: string; label: string; blurb: string; ids: string[] }[]
 
 const kindLabel = (kind: string) => (kind === 'drums' ? 'RHYTHM' : kind === 'synth' ? 'SYNTH' : 'SAMPLED');
 
-// ── Drum pad layout (labels + GM pitches + computer keys) ─────────────────────
-const PADS = [
-  { label: 'Kick',    pitch: 36, key: 'A' },
-  { label: 'Snare',   pitch: 38, key: 'S' },
-  { label: 'Hi-Hat',  pitch: 42, key: 'D' },
-  { label: 'Tom Hi',  pitch: 48, key: 'F' },
-  { label: 'Tom Mid', pitch: 45, key: 'G' },
-  { label: 'Tom Low', pitch: 41, key: 'H' },
-];
+// Computer keys assigned to pads in order; the pads themselves come from the
+// selected kit's own map, so an aux-percussion kit shows congas and shakers
+// rather than a rock kit's labels.
+const PAD_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C'];
 
 // Melodic computer-keyboard map (one octave + a little, DAW-standard layout).
 const KEYMAP: Record<string, number> = {
@@ -139,10 +145,10 @@ function Keyboard({ startPitch, lit, onDown, onUp }: {
   );
 }
 
-function Pads({ lit, onDown, onUp }: { lit: Set<number>; onDown: (p: number) => void; onUp: (p: number) => void }) {
+function Pads({ pads, lit, onDown, onUp }: { pads: { label: string; pitch: number; key: string }[]; lit: Set<number>; onDown: (p: number) => void; onUp: (p: number) => void }) {
   return (
     <div className="mx-auto grid w-full max-w-2xl grid-cols-3 gap-3 select-none" style={{ touchAction: 'none' }}>
-      {PADS.map((pad) => {
+      {pads.map((pad) => {
         const on = lit.has(pad.pitch);
         return (
           <button
@@ -229,6 +235,9 @@ export function InstrumentPicker() {
   const def = selectedId ? getInstrument(selectedId) : null;
   const isDrum = def?.kind === 'drums';
   const isBass = selectedId === 'bass-electric';
+  const padList = selectedId
+    ? drumPads(selectedId).slice(0, PAD_KEYS.length).map((p, i) => ({ ...p, key: PAD_KEYS[i] }))
+    : [];
   const skin = selectedId ? skinFor(selectedId) : null;
 
   // Pads default to the chords of the chosen key; a custom edit forks that set.
@@ -437,7 +446,7 @@ export function InstrumentPicker() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const k = e.key.toLowerCase();
       if (isDrum) {
-        const pad = PADS.find((p) => p.key.toLowerCase() === k);
+        const pad = padList.find((p) => p.key.toLowerCase() === k);
         if (pad) { e.preventDefault(); noteOn(pad.pitch, 0.9); }
         return;
       }
@@ -447,7 +456,7 @@ export function InstrumentPicker() {
     };
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (isDrum) { const pad = PADS.find((p) => p.key.toLowerCase() === k); if (pad) noteOff(pad.pitch); return; }
+      if (isDrum) { const pad = padList.find((p) => p.key.toLowerCase() === k); if (pad) noteOff(pad.pitch); return; }
       if (k in KEYMAP) noteOff(startPitch + KEYMAP[k]);
     };
     window.addEventListener('keydown', down);
@@ -475,8 +484,18 @@ export function InstrumentPicker() {
               <p className="mt-1 text-sm text-zinc-400">Real recorded instruments. Open one to play it, record a take, and drop it on the timeline.</p>
             </div>
             <div className="overflow-y-auto px-4 py-4 scrollbar-thin sm:px-6 sm:py-5" style={{ flex: 1 }}>
+              {FAMILY_ORDER.map((fam) => {
+                const items = INSTRUMENTS.filter((i) => i.family === fam);
+                if (items.length === 0) return null;
+                return (
+                <div key={fam} className="mb-5 last:mb-0">
+                  <div className="mb-2 flex items-baseline gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{FAMILY_LABEL[fam]}</span>
+                    <div className="h-px flex-1 bg-zinc-800/70" />
+                    <span className="text-[10px] text-zinc-600">{items.length}</span>
+                  </div>
               <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(148px,1fr))' }}>
-                {INSTRUMENTS.map((inst) => {
+                {items.map((inst) => {
                   const s = skinFor(inst.id);
                   return (
                     <button
@@ -506,10 +525,14 @@ export function InstrumentPicker() {
                   );
                 })}
               </div>
+                </div>
+                );
+              })}
               <p className="mt-2 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
-                Concert and auxiliary percussion (timpani, congas, shakers, tambourine) and more mallets
-                (marimba, vibraphone, glockenspiel) need real samples vendored before they can appear here -
-                every instrument in this studio plays actual recordings, never a synth stand-in.
+                Concert percussion (timpani, tambourine, triangle) and the remaining mallets (marimba,
+                vibraphone, glockenspiel) are not here yet: no open-licensed recordings of them exist in
+                the libraries this project vendors from, and every instrument in this studio plays real
+                recordings rather than a synth stand-in.
               </p>
             </div>
           </div>
@@ -669,7 +692,7 @@ export function InstrumentPicker() {
 
             <div className="overflow-x-auto bg-[#0a0a0c] px-3 py-5 sm:px-5 sm:py-7">
               {isDrum ? (
-                <Pads lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
+                <Pads pads={padList} lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
               ) : surface === 'chords' ? (
                 <ChordPads
                   chords={activeChords}
@@ -686,7 +709,7 @@ export function InstrumentPicker() {
               )}
               <div className="mt-3 text-center text-[11px] text-zinc-500">
                 {isDrum
-                  ? 'Tap the pads or press A · S · D · F · G · H'
+                  ? `Tap the pads or press ${padList.map((p) => p.key).join(' · ')}`
                   : surface === 'chords'
                     ? <>Press low on a pad for the bass note, higher for fuller inversions{voicingHint ? <> - <span className="text-signal-300">{voicingHint}</span></> : ''}</>
                     : surface === 'fret'
