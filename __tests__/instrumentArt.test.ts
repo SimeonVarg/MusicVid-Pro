@@ -87,10 +87,11 @@ describe('note parsing and the range band', () => {
     expect(tuba.hi).toBeLessThan(flute.hi - 24);
     expect(Math.abs(bandU(tuba.lo) - bandU(flute.lo))).toBeGreaterThan(15);
 
-    // and across the whole rack, no two instruments in a family draw an
-    // identical bar
+    // and across the whole rack, no two PITCHED instruments in a family draw an
+    // identical bar. Drum kits are excluded on purpose: every kit maps onto the
+    // same pad range, so identical bars there are correct, not a collision.
     const seen = new Map<string, string>();
-    for (const inst of INSTRUMENTS) {
+    for (const inst of INSTRUMENTS.filter((i) => i.kind === 'sampler')) {
       const r = recordedRange(inst);
       const key = `${inst.family}:${r.lo}-${r.hi}`;
       if (seen.has(key)) {

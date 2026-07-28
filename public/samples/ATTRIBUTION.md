@@ -11,7 +11,19 @@ fully offline (same doctrine as the vendored ffmpeg wasm).
 | `cello/`, `contrabass/`, `harp/`, `flute/`, `clarinet/`, `bassoon/`, `trumpet/`, `trombone/`, `french-horn/`, `tuba/` | VSCO 2 Community Edition, packaged by N.P. Brosowsky (github.com/nbrosowsky/tonejs-instruments) | CC0 / CC-BY |
 | `perc-aux/` | Berklee sample library via Tonejs/audio (github.com/Tonejs/audio/tree/master/berklee) | Tone.js examples (MIT repo) |
 
-## Not vendored, and why
+| `marimba/`, `vibraphone/`, `glockenspiel/`, `tubular-bells/`, `perc-concert/`, `perc-aux2/` | Versilian Community Sample Library (github.com/sgossner/VCSL), transcoded to mono MP3 | CC0 1.0 (public domain) |
+
+## Deliberately NOT vendored
+
+**Sunday Keys for Live (Sunday Sounds)** was offered as a source and cannot be
+used. Its licence prohibits exactly this: "You may not use our products to
+create sound libraries, templates, patches, instruments, or any other similar
+purpose that are designed to be shared whether for profit or otherwise", and
+separately bars sharing "samples, pads, or isolated audio recordings" derived
+from it. That covers shipping its audio inside this app, so none of it is here.
+Only CC0 / CC-BY sources are vendored.
+
+## Still missing, and why
 
 Concert percussion (timpani, tambourine, triangle, concert bass drum) and the
 remaining mallet instruments (marimba, vibraphone, glockenspiel) are absent

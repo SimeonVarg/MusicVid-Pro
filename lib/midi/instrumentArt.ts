@@ -45,6 +45,13 @@ export const SURFACE_TABLE: Record<string, SurfaceVerdict> = {
   'synth-bass':       { treatment: 'surface', reason: 'synth front panel; preset params' },
   'synth-pad':        { treatment: 'surface', reason: 'synth front panel; preset params' },
 
+  'marimba':          { treatment: 'surface', reason: 'bar ranks; graduated length' },
+  'vibraphone':       { treatment: 'surface', reason: 'bar ranks; graduated length' },
+  'glockenspiel':     { treatment: 'surface', reason: 'bar ranks; graduated length' },
+  'tubular-bells':    { treatment: 'surface', reason: 'hanging tube rank; graduated length' },
+  'perc-concert':     { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
+  'perc-hand':        { treatment: 'surface', reason: 'frame drum head + jingles; 2pi/6' },
+
   'violin':           { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
   'cello':            { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
   'contrabass':       { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },

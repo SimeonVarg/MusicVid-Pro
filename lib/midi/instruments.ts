@@ -56,6 +56,38 @@ export interface InstrumentDef {
   defaultRange: [number, number];
   /** Tone synth preset name (synth kind) */
   synthPreset?: 'lead' | 'bass' | 'pad';
+  /**
+   * Instruments sharing a `group` collapse into ONE card in the studio, and
+   * their `variant` labels become the choices inside it: pick Brass, then
+   * Trumpet, then which trumpet. Adding a B-flat/E-flat/piccolo trumpet or a
+   * muted one is then a data edit here, not a UI change.
+   */
+  group?: string;
+  /** Name of this variant within its group, e.g. 'B-flat', 'Harmon mute'. */
+  variant?: string;
+}
+
+/** The instruments in a group, in catalogue order. */
+export function variantsOf(groupOrId: string): InstrumentDef[] {
+  const byGroup = INSTRUMENTS.filter((i) => i.group === groupOrId);
+  if (byGroup.length) return byGroup;
+  const single = INSTRUMENTS.find((i) => i.id === groupOrId);
+  return single ? [single] : [];
+}
+
+/** One entry per card: a group if the instrument has one, else the instrument. */
+export function instrumentCards(family: InstrumentFamily): { key: string; label: string; lead: InstrumentDef; count: number }[] {
+  const out: { key: string; label: string; lead: InstrumentDef; count: number }[] = [];
+  const seen = new Set<string>();
+  for (const inst of INSTRUMENTS) {
+    if (inst.family !== family) continue;
+    const key = inst.group ?? inst.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const members = variantsOf(key);
+    out.push({ key, label: inst.group ? inst.label.replace(/\s*\(.*\)$/, '') : inst.label, lead: members[0], count: members.length });
+  }
+  return out;
 }
 
 function minorThirdMap(fromOctave: number, toOctave: number, topNote: string): Record<string, string> {
@@ -96,6 +128,25 @@ const AUX_PERC_MAP: Record<number, string> = {
   48: 'crash_cymbal1.mp3', 49: 'china_cymbal1.mp3',
   50: 'gong_1.mp3', 51: 'gong_shot1.mp3',
 };
+
+
+/** Concert percussion one-shots, laid out low to high across the pads. */
+const CONCERT_PERC_MAP = {
+  36: 'bass-drum-1-1.mp3', 38: 'bass-drum-1-2.mp3',
+  40: 'snare-drum-modern-1-1.mp3', 41: 'snare-drum-modern-1-2.mp3',
+  43: 'clash-cymbals-1-1.mp3', 45: 'suspended-cymbal-1-1.mp3',
+  47: 'suspended-cymbal-1-2.mp3', 48: 'gong-1-1.mp3',
+  50: 'triangles-1.mp3', 51: 'triangles-2.mp3',
+} as Record<number, string>;
+
+/** Hand and small percussion. */
+const AUX2_PERC_MAP = {
+  36: 'tambourine-1-1.mp3', 38: 'tambourine-1-2.mp3',
+  40: 'claves-1.mp3', 41: 'woodblock-1.mp3',
+  43: 'woodblock-2.mp3', 45: 'cowbells-1.mp3',
+  47: 'cowbells-2.mp3', 48: 'shaker-small-1.mp3',
+  50: 'shaker-small-2.mp3', 51: 'cabasa-1.mp3',
+} as Record<number, string>;
 
 export const INSTRUMENTS: InstrumentDef[] = [
   {
@@ -265,8 +316,66 @@ export const INSTRUMENTS: InstrumentDef[] = [
     label: 'Auxiliary Percussion',
     kind: 'drums',
     family: 'perc-aux',
+    group: 'aux-perc',
+    variant: 'Congas, shakers & cymbals',
     folder: 'perc-aux',
     drumMap: AUX_PERC_MAP,
+    defaultRange: [36, 51],
+  },
+  {
+    id: 'marimba',
+    label: 'Marimba',
+    kind: 'sampler',
+    family: 'mallets',
+    folder: 'marimba',
+    sampleMap: namesToMap(['F1', 'C2', 'G2', 'B2', 'F3', 'C4', 'G4', 'B4', 'F5', 'C6']),
+    defaultRange: [36, 84],
+  },
+  {
+    id: 'vibraphone',
+    label: 'Vibraphone',
+    kind: 'sampler',
+    family: 'mallets',
+    folder: 'vibraphone',
+    sampleMap: namesToMap(['F2', 'A2', 'C3', 'E3', 'G3', 'B3', 'D4', 'F4', 'A4', 'C5', 'E5']),
+    defaultRange: [41, 89],
+  },
+  {
+    id: 'glockenspiel',
+    label: 'Glockenspiel',
+    kind: 'sampler',
+    family: 'mallets',
+    folder: 'glockenspiel',
+    sampleMap: namesToMap(['G4', 'C5', 'G5', 'C6', 'G6', 'G#6', 'C7']),
+    defaultRange: [67, 108],
+  },
+  {
+    id: 'tubular-bells',
+    label: 'Tubular Bells',
+    kind: 'sampler',
+    family: 'mallets',
+    folder: 'tubular-bells',
+    sampleMap: namesToMap(['C3', 'D3', 'E3', 'F#3', 'G#3', 'A#3', 'C4', 'D4', 'E4']),
+    defaultRange: [48, 77],
+  },
+  {
+    id: 'perc-concert',
+    label: 'Concert Percussion',
+    kind: 'drums',
+    family: 'perc-concert',
+    folder: 'perc-concert',
+    drumMap: CONCERT_PERC_MAP,
+    defaultRange: [36, 51],
+  },
+  {
+    id: 'perc-hand',
+    label: 'Auxiliary Percussion',
+    kind: 'drums',
+    family: 'perc-aux',
+    group: 'aux-perc',
+    variant: 'Tambourine, claves & woodblock',
+    folder: 'perc-aux2',
+    drumMap: AUX2_PERC_MAP,
     defaultRange: [36, 51],
   },
   { id: 'synth-lead', label: 'Synth Lead', kind: 'synth', family: 'synths', synthPreset: 'lead', defaultRange: [48, 96] },
@@ -289,6 +398,16 @@ const HIT_NAMES: Record<string, string> = {
   'cowbell1_big.mp3': 'Cowbell', 'cowbell2_small.mp3': 'Cowbell Hi',
   'crash_cymbal1.mp3': 'Crash', 'china_cymbal1.mp3': 'China',
   'gong_1.mp3': 'Gong', 'gong_shot1.mp3': 'Gong Hit',
+  'bass-drum-1-1.mp3': 'Bass Drum', 'bass-drum-1-2.mp3': 'Bass Drum 2',
+  'snare-drum-modern-1-1.mp3': 'Snare', 'snare-drum-modern-1-2.mp3': 'Snare 2',
+  'clash-cymbals-1-1.mp3': 'Clash Cymbals',
+  'suspended-cymbal-1-1.mp3': 'Susp. Cymbal', 'suspended-cymbal-1-2.mp3': 'Susp. Cymbal 2',
+  'gong-1-1.mp3': 'Tam-tam',
+  'triangles-1.mp3': 'Triangle', 'triangles-2.mp3': 'Triangle 2',
+  'tambourine-1-1.mp3': 'Tambourine', 'tambourine-1-2.mp3': 'Tambourine 2',
+  'claves-1.mp3': 'Claves', 'woodblock-1.mp3': 'Woodblock', 'woodblock-2.mp3': 'Woodblock 2',
+  'cowbells-1.mp3': 'Cowbell', 'cowbells-2.mp3': 'Cowbell 2',
+  'shaker-small-1.mp3': 'Shaker', 'shaker-small-2.mp3': 'Shaker 2', 'cabasa-1.mp3': 'Cabasa',
 };
 
 /** Human label for the drum lane at a MIDI pitch (drum kind only). */

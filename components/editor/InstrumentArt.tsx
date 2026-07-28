@@ -362,6 +362,12 @@ export function InstrumentArt({ id, accent, panel }: { id: string; accent: strin
       case 'bass-electric': return <Fretboard strings={4} wood="linear-gradient(175deg,#33200f,#1d1208 60%,#120b05)" />;
       case 'harp': return <HarpStrings />;
       case 'xylophone': return <MalletBars />;
+      case 'marimba': return <MalletBars />;
+      case 'vibraphone': return <MalletBars />;
+      case 'glockenspiel': return <MalletBars />;
+      case 'tubular-bells': return <MalletBars />;
+      case 'perc-concert': return <DrumHead lugs={8} headTone="#f0e8d6" hoop="#9aa0a8" />;
+      case 'perc-hand': return <DrumHead lugs={6} headTone="#e8d6b4" hoop="#7a5a34" />;
       case 'drums-acoustic': return <DrumHead lugs={10} />;
       case 'perc-aux': return <DrumHead lugs={6} headTone="#e4d2b4" hoop="#8a6a44" />;
       case 'drums-cr78': return <RhythmBox />;
