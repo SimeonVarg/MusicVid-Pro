@@ -504,8 +504,8 @@ export function InstrumentPicker() {
                       className="group relative overflow-hidden rounded-xl text-left ring-1 ring-black/70 transition-all duration-150 hover:-translate-y-0.5 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-signal-400"
                       style={{ background: s.panel, boxShadow: '0 6px 20px rgba(0,0,0,0.45)' }}
                     >
-                      <div className="relative h-[104px] overflow-hidden border-b border-black/60">
-                        <InstrumentArt id={inst.id} accent={s.accent} />
+                      <div className="relative h-[132px] overflow-hidden border-b border-black/60">
+                        <InstrumentArt id={inst.id} accent={s.accent} panel={s.panel} />
                         <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(160deg,rgba(255,255,255,0.10),transparent 42%)' }} />
                         <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100" style={{ background: `radial-gradient(120% 80% at 50% 120%, ${s.accent}33, transparent 70%)` }} />
                       </div>
