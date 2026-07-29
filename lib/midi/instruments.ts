@@ -146,6 +146,36 @@ const DRS_KIT_MAP: Record<number, string> = {
   53: 'ride-bell.mp3',
 };
 
+/** Orchestral cymbals: crashes, china, splash, ride and its bell. */
+const CYMBAL_MAP: Record<number, string> = {
+  36: 'crash-18.mp3', 38: 'crash-20.mp3', 40: 'orch-crash.mp3',
+  41: 'china-19.mp3', 43: 'splash.mp3', 45: 'hihat.mp3',
+  47: 'ride-21.mp3', 48: 'ride-bell.mp3',
+};
+
+/** Gongs and tam-tams, 20 to 40 inch. */
+const GONG_MAP: Record<number, string> = {
+  36: 'wind-gong.mp3', 38: 'tamtam-22.mp3',
+  40: 'tamtam-28.mp3', 41: 'tamtam-40.mp3',
+};
+
+/** Tambourines, triangles, castanets, claves and woodblocks. */
+const HAND_IOWA_MAP: Record<number, string> = {
+  36: 'tambourine.mp3', 38: 'tambourine-2.mp3', 40: 'tambourine-3.mp3',
+  41: 'triangle-6.mp3', 43: 'triangle-8.mp3',
+  45: 'castanets.mp3', 47: 'claves.mp3',
+  48: 'woodblock-7.mp3', 50: 'woodblock-10.mp3',
+};
+
+/**
+ * Timpani, by velocity rather than by pitch: VCSL samples it as
+ * Timpani1_Hit_v4_rr2, with no note information anywhere in the library, so a
+ * chromatic timpani would be invented rather than recorded.
+ */
+const TIMPANI_MAP: Record<number, string> = {
+  36: 'timpani-soft.mp3', 38: 'timpani-mid.mp3', 40: 'timpani-hard.mp3',
+};
+
 /** Auxiliary percussion one-shots laid out across the pad range. */
 const AUX_PERC_MAP: Record<number, string> = {
   36: 'conga_1.mp3', 38: 'conga_2.mp3', 40: 'conga_3.mp3', 41: 'conga_4.mp3',
@@ -944,6 +974,71 @@ export const INSTRUMENTS: InstrumentDef[] = [
     sampleMap: namesToMap(['C2', 'C3', 'C4', 'C5', 'E2', 'E3', 'E4', 'G#2', 'G#3', 'G#4']),
     defaultRange: [36, 72],
   },
+  {
+    id: 'perc-cymbals',
+    label: 'Orchestral Cymbals',
+    kind: 'drums',
+    family: 'perc-concert',
+    folder: 'perc-cymbals',
+    drumMap: CYMBAL_MAP,
+    defaultRange: [36, 48],
+  },
+  {
+    id: 'perc-gongs',
+    label: 'Gongs & Tam-tams',
+    kind: 'drums',
+    family: 'perc-concert',
+    folder: 'perc-gongs',
+    drumMap: GONG_MAP,
+    defaultRange: [36, 41],
+  },
+  {
+    id: 'perc-hand-iowa',
+    label: 'Tambourine & Hand Percussion',
+    kind: 'drums',
+    family: 'perc-concert',
+    folder: 'perc-hand-iowa',
+    drumMap: HAND_IOWA_MAP,
+    defaultRange: [36, 50],
+  },
+  {
+    id: 'perc-timpani',
+    label: 'Timpani',
+    kind: 'drums',
+    family: 'perc-concert',
+    folder: 'perc-timpani',
+    drumMap: TIMPANI_MAP,
+    defaultRange: [36, 40],
+  },
+  {
+    id: 'crotales',
+    label: 'Crotales',
+    kind: 'sampler',
+    family: 'perc-concert',
+    folder: 'crotales',
+    sampleMap: namesToMap(['A6', 'A7', 'A#6', 'A#7', 'B6', 'B7', 'C6', 'C7', 'C8', 'C#6', 'C#7', 'D6', 'D7', 'D#6', 'D#7', 'E6', 'E7', 'F6', 'F7', 'F#6', 'F#7', 'G6', 'G7', 'G#6', 'G#7']),
+    defaultRange: [84, 108],
+  },
+  {
+    id: 'choir-synth',
+    label: 'Choir',
+    kind: 'sampler',
+    family: 'voice',
+    group: 'choir',
+    variant: 'Synth choir',
+    folder: 'choir-synth',
+    sampleMap: namesToMap(['B2', 'B3', 'B4', 'B5', 'D#3', 'D#4', 'D#5', 'D#6', 'G2', 'G3', 'G4', 'G5', 'G6']),
+    defaultRange: [43, 91],
+  },
+  {
+    id: 'orchestra-hit',
+    label: 'Orchestra Hit',
+    kind: 'sampler',
+    family: 'voice',
+    folder: 'orchestra-hit',
+    sampleMap: namesToMap(['C2', 'C3', 'C4', 'C5', 'C6', 'E2', 'E3', 'E4', 'E5', 'G#2', 'G#3', 'G#4', 'G#5']),
+    defaultRange: [36, 84],
+  },
   { id: 'synth-lead', label: 'Synth Lead', kind: 'synth', family: 'synths', synthPreset: 'lead', defaultRange: [48, 96] },
   { id: 'synth-bass', label: 'Synth Bass', kind: 'synth', family: 'synths', synthPreset: 'bass', defaultRange: [24, 60] },
   { id: 'synth-pad', label: 'Synth Pad', kind: 'synth', family: 'synths', synthPreset: 'pad', defaultRange: [36, 84] },
@@ -964,6 +1059,17 @@ const HIT_NAMES: Record<string, string> = {
   'cowbell1_big.mp3': 'Cowbell', 'cowbell2_small.mp3': 'Cowbell Hi',
   'crash_cymbal1.mp3': 'Crash', 'china_cymbal1.mp3': 'China',
   'gong_1.mp3': 'Gong', 'gong_shot1.mp3': 'Gong Hit',
+  'crash-18.mp3': 'Crash 18"', 'crash-20.mp3': 'Crash 20"', 'orch-crash.mp3': 'Orch. Crash',
+  'china-19.mp3': 'China 19"', 'splash.mp3': 'Splash', 'ride-21.mp3': 'Ride 21"',
+  'wind-gong.mp3': 'Wind Gong', 'tamtam-22.mp3': 'Tam-tam 22"',
+  'tamtam-28.mp3': 'Tam-tam 28"', 'tamtam-40.mp3': 'Tam-tam 40"',
+  'tambourine.mp3': 'Tambourine', 'tambourine-2.mp3': 'Tambourine 2',
+  'tambourine-3.mp3': 'Tambourine 3', 'triangle-6.mp3': 'Triangle 6"',
+  'triangle-8.mp3': 'Triangle 8"', 'castanets.mp3': 'Castanets',
+  'claves.mp3': 'Claves', 'woodblock-7.mp3': 'Woodblock 7"',
+  'woodblock-10.mp3': 'Woodblock 10"',
+  'timpani-soft.mp3': 'Timpani soft', 'timpani-mid.mp3': 'Timpani mid',
+  'timpani-hard.mp3': 'Timpani hard',
   'hihat-open.mp3': 'Hi-Hat Open', 'hihat-foot.mp3': 'Hi-Hat Foot',
   'rimshot.mp3': 'Rimshot', 'crash.mp3': 'Crash', 'crash2.mp3': 'Crash 2',
   'ride.mp3': 'Ride', 'ride-bell.mp3': 'Ride Bell',

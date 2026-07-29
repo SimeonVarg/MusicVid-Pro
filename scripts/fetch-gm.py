@@ -119,6 +119,8 @@ JOBS = [
     # Voice
     ('choir_aahs', 'choir-aahs', 43, 91),
     ('voice_oohs', 'choir-oohs', 43, 91),
+    ('synth_choir', 'choir-synth', 43, 91),
+    ('orchestra_hit', 'orchestra-hit', 36, 84),
     # World
     ('sitar', 'sitar', 48, 84),
     ('banjo', 'banjo', 48, 84),

@@ -396,6 +396,10 @@ export function InstrumentArt({ id, accent, panel }: { id: string; accent: strin
       case 'glockenspiel': return <MalletBars />;
       case 'tubular-bells': return <MalletBars />;
       case 'perc-concert': return <DrumHead lugs={8} headTone="#f0e8d6" hoop="#9aa0a8" />;
+      case 'perc-cymbals': return <DrumHead lugs={12} headTone="#e8d79a" hoop="#b8963c" />;
+      case 'perc-gongs': return <DrumHead lugs={4} headTone="#d8bf7a" hoop="#8a6c1e" />;
+      case 'perc-hand-iowa': return <DrumHead lugs={6} headTone="#e6d8bc" hoop="#8a7048" />;
+      case 'perc-timpani': return <DrumHead lugs={8} headTone="#f2ead6" hoop="#7a5a34" />;
       case 'perc-hand': return <DrumHead lugs={6} headTone="#e8d6b4" hoop="#7a5a34" />;
       case 'drums-acoustic': return <DrumHead lugs={10} />;
       case 'drums-drs-sticks': return <DrumHead lugs={10} />;

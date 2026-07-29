@@ -106,6 +106,15 @@ export const SURFACE_TABLE: Record<string, SurfaceVerdict> = {
   'steel-drums':         { treatment: 'plate', reason: 'drawn silhouette - no flat playing surface to crop' },
   'taiko':               { treatment: 'plate', reason: 'drawn silhouette - no flat playing surface to crop' },
 
+  'perc-cymbals':        { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
+  'perc-gongs':          { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
+  'perc-hand-iowa':      { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
+  'perc-timpani':        { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
+  'crotales':            { treatment: 'plate', reason: 'drawn silhouette - no flat playing surface to crop' },
+
+  'choir-synth':         { treatment: 'plate', reason: 'drawn silhouette - no flat playing surface to crop' },
+  'orchestra-hit':       { treatment: 'plate', reason: 'drawn silhouette - no flat playing surface to crop' },
+
   'violin':           { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
   'cello':            { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
   'contrabass':       { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
