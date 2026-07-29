@@ -87,17 +87,21 @@ describe('note parsing and the range band', () => {
     expect(tuba.hi).toBeLessThan(flute.hi - 24);
     expect(Math.abs(bandU(tuba.lo) - bandU(flute.lo))).toBeGreaterThan(15);
 
-    // and across the whole rack, no two PITCHED instruments in a family draw an
-    // identical bar. Drum kits are excluded on purpose: every kit maps onto the
-    // same pad range, so identical bars there are correct, not a collision.
-    const seen = new Map<string, string>();
+    // NOTE: there is deliberately no "every instrument draws a unique bar"
+    // assertion. An earlier version had one and it was wrong on its face: a
+    // Rhodes really does span the same keyboard as a honky-tonk piano, and a
+    // recorder really does share the flute's compass. The band reports the
+    // instrument's true range, and identical ranges are identical data, not a
+    // collision. What matters is that each bar is DERIVED from that
+    // instrument's own shipped samples, which the assertions below check.
     for (const inst of INSTRUMENTS.filter((i) => i.kind === 'sampler')) {
       const r = recordedRange(inst);
-      const key = `${inst.family}:${r.lo}-${r.hi}`;
-      if (seen.has(key)) {
-        expect.soft(`${inst.id} draws the same bar as ${seen.get(key)}`).toBe('distinct');
-      }
-      seen.set(key, inst.id);
+      const mapped = Object.keys(inst.sampleMap ?? {})
+        .map(parseNoteName)
+        .filter((x): x is number => x !== null);
+      expect(r.lo, `${inst.id} low`).toBe(Math.min(...mapped));
+      expect(r.hi, `${inst.id} high`).toBe(Math.max(...mapped));
+      expect(r.samples.length, `${inst.id} sample count`).toBe(mapped.length);
     }
   });
 });

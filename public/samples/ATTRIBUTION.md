@@ -12,8 +12,13 @@ fully offline (same doctrine as the vendored ffmpeg wasm).
 | `perc-aux/` | Berklee sample library via Tonejs/audio (github.com/Tonejs/audio/tree/master/berklee) | Tone.js examples (MIT repo) |
 
 | `marimba/`, `vibraphone/`, `glockenspiel/`, `tubular-bells/`, `perc-concert/`, `perc-aux2/` | Versilian Community Sample Library (github.com/sgossner/VCSL), transcoded to mono MP3 | CC0 1.0 (public domain) |
+| 50 General MIDI instruments (pianos, organs, guitars, basses, viola, string section, saxes, double reeds, pipes, choir, world) | FluidR3_GM by Frank Wen, pre-rendered per note by [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) | MIT (upstream soundfont); the repo labels it CC-BY 3.0. Both permit redistribution in a shipped app; credit Frank Wen. |
 
 ## Deliberately NOT vendored
+
+**tidalcycles/sounds-tr808-fischer** was proposed by research and REJECTED on
+independent licence verification, so it is not vendored. Do not re-propose it
+without re-checking the chain of title.
 
 **Sunday Keys for Live (Sunday Sounds)** was offered as a source and cannot be
 used. Its licence prohibits exactly this: "You may not use our products to

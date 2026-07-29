@@ -17,3 +17,13 @@ They are embedded as path data in `lib/midi/instrumentIcons.ts`.
 | `delapouite/trumpet.svg` | Delapouite |
 | `delapouite/xylophone.svg` | Delapouite |
 | `zajkonur/violin.svg` | Zajkonur |
+| `delapouite/bagpipes.svg` | Delapouite |
+| `delapouite/banjo.svg` | Delapouite |
+| `delapouite/drum.svg` | Delapouite |
+| `delapouite/gong.svg` | Delapouite |
+| `delapouite/ocarina.svg` | Delapouite |
+| `delapouite/pan-flute.svg` | Delapouite |
+| `lorc/lyre.svg` | Lorc |
+| `caro-asercion/accordion.svg` | Caro Asercion |
+| `caro-asercion/pipe-organ.svg` | Caro Asercion |
+| `lorc/viola.svg` | Lorc |
