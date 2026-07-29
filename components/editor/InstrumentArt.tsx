@@ -19,6 +19,7 @@ import {
   BAND_LO, BAND_HI,
 } from '@/lib/midi/instrumentArt';
 import { getInstrument } from '@/lib/midi/instruments';
+import { iconFor } from '@/lib/midi/instrumentIcons';
 
 const WHITE_COUNT = 7;
 const BLACK_AFTER = [0, 1, 3, 4, 5];
@@ -311,6 +312,34 @@ function MaterialPlate({ panel, accent }: { panel: string; accent: string }) {
   );
 }
 
+
+/**
+ * A drawn instrument silhouette, from game-icons.net (CC BY 3.0).
+ *
+ * Five hand-built attempts at a violin, a saxophone and a brass instrument were
+ * all rejected, and correctly: an instrument defined by its outline cannot be
+ * assembled from CSS rectangles. These are drawn by illustrators. We tint one
+ * and let it sit on the instrument's own material, so the card still carries the
+ * family colour and the range band, but the shape is a real drawing.
+ */
+function Silhouette({ id, accent, panel }: { id: string; accent: string; panel: string }) {
+  const icon = iconFor(id);
+  if (!icon) return <MaterialPlate panel={panel} accent={accent} />;
+  return (
+    <div className="absolute inset-0 overflow-hidden" style={{ background: panel }}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 90% at 24% 6%,rgba(255,255,255,0.09),transparent 60%)' }} />
+      <svg
+        viewBox={icon.viewBox}
+        className="absolute left-1/2 top-1/2 h-[132%] w-[132%] -translate-x-1/2 -translate-y-1/2"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <path d={icon.d} fill={accent} fillOpacity={0.92} />
+      </svg>
+    </div>
+  );
+}
+
 // ── The data band, identical on every card ───────────────────────────────────
 
 function RangeBand({ id, accent }: { id: string; accent: string }) {
@@ -384,7 +413,7 @@ export function InstrumentArt({ id, accent, panel }: { id: string; accent: strin
       <div className="absolute inset-x-0 top-0 bottom-[28px] overflow-hidden">
         {treatment === 'surface' && surface
           ? surface
-          : <MaterialPlate panel={panel} accent={accent} />}
+          : <Silhouette id={id} accent={accent} panel={panel} />}
       </div>
       <RangeBand id={id} accent={accent} />
     </>

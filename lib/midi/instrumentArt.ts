@@ -37,7 +37,6 @@ export const SURFACE_TABLE: Record<string, SurfaceVerdict> = {
   'guitar-acoustic':  { treatment: 'surface', reason: 'fretboard; 1-2^(-n/12)' },
   'bass-electric':    { treatment: 'surface', reason: 'fretboard; 1-2^(-n/12)' },
   'harp':             { treatment: 'surface', reason: 'string plane; diatonic colour code' },
-  'xylophone':        { treatment: 'surface', reason: 'bar ranks; graduated length' },
   'drums-acoustic':   { treatment: 'surface', reason: 'head + lug ring; 2pi/10' },
   'perc-aux':         { treatment: 'surface', reason: 'conga head + lug ring; 2pi/6' },
   'drums-cr78':       { treatment: 'surface', reason: 'machine front panel; bar / 8' },
@@ -45,12 +44,14 @@ export const SURFACE_TABLE: Record<string, SurfaceVerdict> = {
   'synth-bass':       { treatment: 'surface', reason: 'synth front panel; preset params' },
   'synth-pad':        { treatment: 'surface', reason: 'synth front panel; preset params' },
 
-  'marimba':          { treatment: 'surface', reason: 'bar ranks; graduated length' },
-  'vibraphone':       { treatment: 'surface', reason: 'bar ranks; graduated length' },
-  'glockenspiel':     { treatment: 'surface', reason: 'bar ranks; graduated length' },
-  'tubular-bells':    { treatment: 'surface', reason: 'hanging tube rank; graduated length' },
   'perc-concert':     { treatment: 'surface', reason: 'head + lug ring; 2pi/8' },
   'perc-hand':        { treatment: 'surface', reason: 'frame drum head + jingles; 2pi/6' },
+
+  'xylophone':        { treatment: 'plate', reason: 'drawn silhouette - hand-built bar ranks were rejected twice' },
+  'marimba':          { treatment: 'plate', reason: 'drawn silhouette - hand-built bar ranks were rejected twice' },
+  'vibraphone':       { treatment: 'plate', reason: 'drawn silhouette - hand-built bar ranks were rejected twice' },
+  'glockenspiel':     { treatment: 'plate', reason: 'drawn silhouette - hand-built bar ranks were rejected twice' },
+  'tubular-bells':    { treatment: 'plate', reason: 'drawn silhouette - hand-built bar ranks were rejected twice' },
 
   'violin':           { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
   'cello':            { treatment: 'plate', reason: 'fails REPEATING - 4 strings, no crossing rank' },
