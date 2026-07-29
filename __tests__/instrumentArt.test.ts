@@ -137,3 +137,21 @@ describe('surface geometry', () => {
     }
   });
 });
+
+describe('sample maps point at files that exist', () => {
+  it('every sampleMap key resolves to a real vendored file', async () => {
+    // Guards the class of bug that shipped an octave error: the map and the
+    // folder drifting apart. A key naming a file we do not have is silence at
+    // best and a wrong pitch at worst.
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    for (const inst of INSTRUMENTS) {
+      if (!inst.sampleMap || !inst.folder) continue;
+      const dir = path.join(process.cwd(), 'public', 'samples', inst.folder);
+      if (!fs.existsSync(dir)) continue;
+      for (const file of Object.values(inst.sampleMap)) {
+        expect(fs.existsSync(path.join(dir, file)), `${inst.id} -> ${file}`).toBe(true);
+      }
+    }
+  });
+});

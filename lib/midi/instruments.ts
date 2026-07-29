@@ -343,8 +343,8 @@ export const INSTRUMENTS: InstrumentDef[] = [
     kind: 'sampler',
     family: 'mallets',
     folder: 'marimba',
-    sampleMap: namesToMap(['F1', 'C2', 'G2', 'B2', 'F3', 'C4', 'G4', 'B4', 'F5', 'C6']),
-    defaultRange: [36, 84],
+    sampleMap: namesToMap(['B3', 'B5', 'C3', 'C5', 'C7', 'F2', 'F4', 'F6', 'G3', 'G5']),
+    defaultRange: [41, 96],
   },
   {
     id: 'vibraphone',
@@ -352,8 +352,8 @@ export const INSTRUMENTS: InstrumentDef[] = [
     kind: 'sampler',
     family: 'mallets',
     folder: 'vibraphone',
-    sampleMap: namesToMap(['F2', 'A2', 'C3', 'E3', 'G3', 'B3', 'D4', 'F4', 'A4', 'C5', 'E5']),
-    defaultRange: [41, 89],
+    sampleMap: namesToMap(['A3', 'A5', 'B4', 'C4', 'C6', 'D5', 'E4', 'E6', 'F3', 'F5', 'G4']),
+    defaultRange: [53, 88],
   },
   {
     id: 'glockenspiel',
@@ -361,8 +361,8 @@ export const INSTRUMENTS: InstrumentDef[] = [
     kind: 'sampler',
     family: 'mallets',
     folder: 'glockenspiel',
-    sampleMap: namesToMap(['G4', 'C5', 'G5', 'C6', 'G6', 'G#6', 'C7']),
-    defaultRange: [67, 108],
+    sampleMap: namesToMap(['C6', 'C7', 'C8', 'G5', 'G6', 'G7', 'G#7']),
+    defaultRange: [79, 108],
   },
   {
     id: 'tubular-bells',
@@ -370,8 +370,8 @@ export const INSTRUMENTS: InstrumentDef[] = [
     kind: 'sampler',
     family: 'mallets',
     folder: 'tubular-bells',
-    sampleMap: namesToMap(['C3', 'D3', 'E3', 'F#3', 'G#3', 'A#3', 'C4', 'D4', 'E4']),
-    defaultRange: [48, 77],
+    sampleMap: namesToMap(['A#4', 'C4', 'C5', 'D4', 'D5', 'E4', 'E5', 'F#4', 'G#4']),
+    defaultRange: [60, 76],
   },
   {
     id: 'perc-concert',
