@@ -115,6 +115,8 @@ const SKIN: Record<string, Skin> = {
   'bagpipe':               { accent: '#8fb98a', tagline: 'Highland bagpipes', panel: 'linear-gradient(150deg,#1d2a1c,#121a12 55%,#080d08)' },
   'steel-drums':           { accent: '#8fb98a', tagline: 'Caribbean steel pan', panel: 'linear-gradient(150deg,#1d2a1c,#121a12 55%,#080d08)' },
   'taiko':                 { accent: '#8fb98a', tagline: 'Japanese taiko', panel: 'linear-gradient(150deg,#1d2a1c,#121a12 55%,#080d08)' },
+  'drums-drs-sticks':  { accent: '#e5675f', tagline: 'Real kit, played with sticks', panel: 'linear-gradient(150deg,#27272c,#161619 60%,#0a0a0c)' },
+  'drums-drs-brushes': { accent: '#d8a07a', tagline: 'Real kit, played with brushes', panel: 'linear-gradient(150deg,#2a2420,#181413 60%,#0b0908)' },
 };
 const skinFor = (id: string): Skin => SKIN[id] ?? SKIN['piano'];
 

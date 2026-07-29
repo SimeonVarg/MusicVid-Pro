@@ -125,6 +125,27 @@ const GM_DRUM_MAP: Record<number, string> = {
 };
 
 
+/**
+ * DRSKit mapping. Unlike the old six-file kit, every GM slot here points at the
+ * instrument it names: crash is a crash, ride is a ride, the ride bell is the
+ * bell, and the hi-hat has closed / open / foot rather than one sample reused.
+ */
+const DRS_KIT_MAP: Record<number, string> = {
+  35: 'kick.mp3', 36: 'kick.mp3',
+  37: 'rimshot.mp3',
+  38: 'snare.mp3', 40: 'snare.mp3',
+  39: 'rimshot.mp3',
+  41: 'tom3.mp3', 43: 'tom3.mp3',
+  42: 'hihat.mp3',
+  44: 'hihat-foot.mp3',
+  45: 'tom2.mp3', 47: 'tom2.mp3',
+  46: 'hihat-open.mp3',
+  48: 'tom1.mp3', 50: 'tom1.mp3',
+  49: 'crash.mp3', 57: 'crash2.mp3',
+  51: 'ride.mp3', 59: 'ride.mp3',
+  53: 'ride-bell.mp3',
+};
+
 /** Auxiliary percussion one-shots laid out across the pad range. */
 const AUX_PERC_MAP: Record<number, string> = {
   36: 'conga_1.mp3', 38: 'conga_2.mp3', 40: 'conga_3.mp3', 41: 'conga_4.mp3',
@@ -216,10 +237,34 @@ export const INSTRUMENTS: InstrumentDef[] = [
     sampleMap: namesToMap(['C5', 'C6', 'C7', 'C8', 'G4', 'G5', 'G6', 'G7']),
     defaultRange: [65, 108],
   },
-  {
-    id: 'drums-acoustic',
-    label: 'Drum Kit (Acoustic)',
+    {
+    id: 'drums-drs-sticks',
+    label: 'Acoustic Drum Kit',
+    kind: 'drums',
     family: 'kits',
+    group: 'kit-acoustic',
+    variant: 'Sticks',
+    folder: 'drums-drs-sticks',
+    drumMap: DRS_KIT_MAP,
+    defaultRange: [35, 59],
+  },
+  {
+    id: 'drums-drs-brushes',
+    label: 'Acoustic Drum Kit',
+    kind: 'drums',
+    family: 'kits',
+    group: 'kit-acoustic',
+    variant: 'Brushes',
+    folder: 'drums-drs-brushes',
+    drumMap: DRS_KIT_MAP,
+    defaultRange: [35, 59],
+  },
+{
+    id: 'drums-acoustic',
+    label: 'Acoustic Drum Kit',
+    family: 'kits',
+    group: 'kit-acoustic',
+    variant: 'Vintage (6-piece)',
     kind: 'drums',
     folder: 'drums-acoustic',
     drumMap: GM_DRUM_MAP,
@@ -919,6 +964,9 @@ const HIT_NAMES: Record<string, string> = {
   'cowbell1_big.mp3': 'Cowbell', 'cowbell2_small.mp3': 'Cowbell Hi',
   'crash_cymbal1.mp3': 'Crash', 'china_cymbal1.mp3': 'China',
   'gong_1.mp3': 'Gong', 'gong_shot1.mp3': 'Gong Hit',
+  'hihat-open.mp3': 'Hi-Hat Open', 'hihat-foot.mp3': 'Hi-Hat Foot',
+  'rimshot.mp3': 'Rimshot', 'crash.mp3': 'Crash', 'crash2.mp3': 'Crash 2',
+  'ride.mp3': 'Ride', 'ride-bell.mp3': 'Ride Bell',
   'bass-drum-1-1.mp3': 'Bass Drum', 'bass-drum-1-2.mp3': 'Bass Drum 2',
   'snare-drum-modern-1-1.mp3': 'Snare', 'snare-drum-modern-1-2.mp3': 'Snare 2',
   'clash-cymbals-1-1.mp3': 'Clash Cymbals',

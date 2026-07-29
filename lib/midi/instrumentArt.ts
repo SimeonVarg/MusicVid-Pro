@@ -37,6 +37,8 @@ export const SURFACE_TABLE: Record<string, SurfaceVerdict> = {
   'guitar-acoustic':  { treatment: 'surface', reason: 'fretboard; 1-2^(-n/12)' },
   'bass-electric':    { treatment: 'surface', reason: 'fretboard; 1-2^(-n/12)' },
   'harp':             { treatment: 'surface', reason: 'string plane; diatonic colour code' },
+  'drums-drs-sticks':  { treatment: 'surface', reason: 'head + lug ring; 2pi/10' },
+  'drums-drs-brushes': { treatment: 'surface', reason: 'head + lug ring; 2pi/10' },
   'drums-acoustic':   { treatment: 'surface', reason: 'head + lug ring; 2pi/10' },
   'perc-aux':         { treatment: 'surface', reason: 'conga head + lug ring; 2pi/6' },
   'drums-cr78':       { treatment: 'surface', reason: 'machine front panel; bar / 8' },

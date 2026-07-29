@@ -398,6 +398,8 @@ export function InstrumentArt({ id, accent, panel }: { id: string; accent: strin
       case 'perc-concert': return <DrumHead lugs={8} headTone="#f0e8d6" hoop="#9aa0a8" />;
       case 'perc-hand': return <DrumHead lugs={6} headTone="#e8d6b4" hoop="#7a5a34" />;
       case 'drums-acoustic': return <DrumHead lugs={10} />;
+      case 'drums-drs-sticks': return <DrumHead lugs={10} />;
+      case 'drums-drs-brushes': return <DrumHead lugs={10} headTone="#e9e2d0" hoop="#8a8f96" />;
       case 'perc-aux': return <DrumHead lugs={6} headTone="#e4d2b4" hoop="#8a6a44" />;
       case 'drums-cr78': return <RhythmBox />;
       case 'synth-lead': return <SynthPanel accent={accent} preset="lead" />;
