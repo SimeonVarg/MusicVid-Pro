@@ -20,7 +20,9 @@ export function SessionRestoreBanner() {
     const autosaveId = localStorage.getItem(AUTOSAVE_ID_KEY);
     if (!autosaveId) return;
     const s = useEditorStore.getState();
-    if (s.videoTracks.length + s.audioTracks.length + s.textTracks.length > 0) return;
+    // Counts MIDI too, or a restored beat-only session would be offered for
+    // restore again on top of itself.
+    if (s.videoTracks.length + s.audioTracks.length + s.textTracks.length + s.midiTracks.length > 0) return;
     listProjects()
       .then((projects) => {
         if (projects.some((p) => p.id === autosaveId)) setOfferId(autosaveId);

@@ -8,7 +8,7 @@
  * clip) and Split. Beats mode swaps Add's contents for the instrument studio,
  * the same way the desktop hides the media column there.
  */
-import { Plus, Scissors, SlidersHorizontal, Piano } from 'lucide-react';
+import { Plus, Scissors, SlidersHorizontal, Piano, Undo2 } from 'lucide-react';
 import { useEditorStore, showsAudioTools } from '@/stores/editorStore';
 
 export type DockSheet = 'add' | 'inspect' | null;
@@ -28,6 +28,17 @@ export function MobileDock({
   const pianoRollTrackId = useEditorStore((s) => s.pianoRollTrackId);
   const openPianoRoll = useEditorStore((s) => s.openPianoRoll);
   const midiTracks = useEditorStore((s) => s.midiTracks);
+
+  // Undo was keyboard-only (Ctrl+Z), so on a phone — where a stray swipe can
+  // move a clip and there is no keyboard — an edit could not be taken back at
+  // all. It belongs in the dock, next to the actions that cause it.
+  const undo = useEditorStore((s) => s.undo);
+  const canUndo = useEditorStore((s) => s.canUndo);
+  const videoTracks = useEditorStore((s) => s.videoTracks);
+  const audioTracks = useEditorStore((s) => s.audioTracks);
+  // Reading these makes the dock re-render after any edit, which is when
+  // canUndo()'s answer changes.
+  void videoTracks; void audioTracks; void midiTracks;
 
   const audioTools = showsAudioTools(mode);
   const selectedId = selectedTrackIds[0];
@@ -64,6 +75,7 @@ export function MobileDock({
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
     >
       {item('Add', Plus, () => onOpen(active === 'add' ? null : 'add'), { isActive: active === 'add', accent: true })}
+      {item('Undo', Undo2, undo, { disabled: !canUndo() })}
       {audioTools && item('Instrument', Piano, () => setInstrumentPickerOpen(true))}
       {item('Inspect', SlidersHorizontal, () => onOpen(active === 'inspect' ? null : 'inspect'), { isActive: active === 'inspect' })}
       {selectedMidi

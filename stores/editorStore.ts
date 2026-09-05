@@ -6,6 +6,8 @@ import { AudioProcessor } from '@/lib/audio/audioProcessor';
 import { VideoProcessor, type VideoSpeedStage } from '@/lib/video/videoProcessor';
 import { getVideoMetadata } from '@/lib/utils/videoMetadata';
 import { AudioContextManager } from '@/lib/audio/audioContextManager';
+import { errorText } from '@/lib/errors/appError';
+import { stepsToDrop } from '@/lib/utils/historyBudget';
 import { mediaRegistry } from '@/lib/media/mediaRegistry';
 import { saveProject as persistSaveProject, loadProject as persistLoadProject } from '@/lib/persistence/projectStore';
 import { snapToBeatGrid } from '@/lib/utils/musicalTime';
@@ -395,6 +397,8 @@ export interface EditorState {
   setPitchEngine: (engine: 'rubberband' | 'standard') => void;
 
   // project / error actions
+  canUndo: () => boolean;
+  canRedo: () => boolean;
   undo: () => void;
   redo: () => void;
   saveProject: (name?: string) => Promise<string>;
@@ -501,9 +505,15 @@ function restoreSnapshot(set: (fn: (state: EditorState) => void) => void, snapsh
   });
 }
 
+/** Drop the oldest steps that push history past its step or audio budget. */
+function trimHistory(state: EditorState) {
+  const drop = stepsToDrop(historyPast, state.audioTracks);
+  if (drop > 0) historyPast.splice(0, drop);
+}
+
 function pushHistory(state: EditorState) {
   historyPast.push(snapshotState(state));
-  if (historyPast.length > 50) historyPast.shift();
+  trimHistory(state);
   historyFuture.length = 0;
   lastCoalesceKey = null;
 }
@@ -521,7 +531,7 @@ function pushHistoryCoalesced(state: EditorState, key: string) {
     return;
   }
   historyPast.push(snapshotState(state));
-  if (historyPast.length > 50) historyPast.shift();
+  trimHistory(state);
   historyFuture.length = 0;
   lastCoalesceKey = key;
   lastCoalesceAt = now;
@@ -604,6 +614,10 @@ function cloneVideoTrack(track: VideoTrack, overrides: Partial<VideoTrack> = {})
     id: crypto.randomUUID(),
     url: track.fileId ? mediaRegistry.getUrl(track.fileId) : track.url,
     effects: [...track.effects],
+    // The extracted audio track belongs to the ORIGINAL clip. Copying the link
+    // gave a split's right half a claim on it too, and deleting either half
+    // then took the audio away from the one still on the timeline.
+    linkedAudioTrackId: undefined,
     ...overrides,
   };
 }
@@ -742,7 +756,7 @@ export const useEditorStore = create<EditorState>()(
               state.selectedTrackIds = [id];
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Failed to load video';
+            const msg = errorText(error, 'Failed to load video');
             console.error('Failed to load video:', error);
             set((state) => { state.lastError = msg; });
             mediaRegistry.release(fileId);
@@ -780,7 +794,7 @@ export const useEditorStore = create<EditorState>()(
               state.selectedTrackIds = [id];
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Failed to load audio';
+            const msg = errorText(error, 'Failed to load audio');
             console.error('Failed to load audio:', error);
             set((state) => { state.lastError = msg; });
             mediaRegistry.release(fileId);
@@ -876,7 +890,7 @@ export const useEditorStore = create<EditorState>()(
             });
             midiPlaybackEngine.preload(parsed.tracks.map((t) => t.instrumentId)).catch(() => {});
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Failed to import MIDI file';
+            const msg = errorText(error, 'Failed to import MIDI file');
             console.error('MIDI import failed:', error);
             set((state) => { state.lastError = msg; });
           }
@@ -953,7 +967,12 @@ export const useEditorStore = create<EditorState>()(
             if (audioTrack?.fileId) mediaRegistry.release(audioTrack.fileId);
             if (videoTrack?.linkedAudioTrackId) {
               const linked = state.audioTracks.find((t) => t.id === videoTrack.linkedAudioTrackId);
-              if (linked?.isExtractedFromVideo) {
+              // Belt and braces alongside the clone fix: never take the audio
+              // away while another video clip still points at it.
+              const stillClaimed = state.videoTracks.some(
+                (t) => t.id !== id && t.linkedAudioTrackId === videoTrack.linkedAudioTrackId
+              );
+              if (linked?.isExtractedFromVideo && !stillClaimed) {
                 if (linked.fileId) mediaRegistry.release(linked.fileId);
                 state.audioTracks = state.audioTracks.filter((t) => t.id !== linked.id);
                 state.selectedTrackIds = state.selectedTrackIds.filter((tid) => tid !== linked.id);
@@ -1195,7 +1214,7 @@ export const useEditorStore = create<EditorState>()(
               state.timeline.duration = recalculateTimelineDuration(state);
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Split audio from video failed';
+            const msg = errorText(error, 'Split audio from video failed');
             console.error('Split audio from video failed:', error);
             set((state) => { state.lastError = msg; });
           }
@@ -1735,11 +1754,7 @@ export const useEditorStore = create<EditorState>()(
               state.timeline.duration = recalculateTimelineDuration(state);
             });
           } catch (error) {
-            const msg = error instanceof Error
-              ? error.message
-              : (typeof error === 'object' && error !== null && 'message' in error)
-                ? String((error as { message: unknown }).message)
-                : 'Pitch shift failed';
+            const msg = errorText(error, 'Pitch shift failed');
             console.error('Pitch shift failed:', error);
             set((state) => { state.lastError = msg; });
           }
@@ -1791,7 +1806,7 @@ export const useEditorStore = create<EditorState>()(
             });
             set((state) => { state.videoSpeedStage = 'finalizing'; state.videoSpeedStageProgress = 100; state.videoSpeedStatus = 'Done'; });
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Video speed processing failed';
+            const message = errorText(error, 'Video speed processing failed');
             set((state) => { state.videoSpeedStageProgress = 0; state.videoSpeedStatus = `Error: ${message}`; });
             throw error;
           } finally {
@@ -1859,7 +1874,7 @@ export const useEditorStore = create<EditorState>()(
           } catch (error) {
             set((draft) => {
               draft.isAdjustingBpm = false;
-              draft.bpmAdjustorError = error instanceof Error ? error.message : 'BPM adjustment failed';
+              draft.bpmAdjustorError = errorText(error, 'BPM adjustment failed');
             });
             console.error('BPM adjustment failed:', error);
           }
@@ -1883,7 +1898,7 @@ export const useEditorStore = create<EditorState>()(
               }
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Video sync failed';
+            const msg = errorText(error, 'Video sync failed');
             console.error('Video sync failed:', error);
             set((state) => { state.lastError = msg; });
           }
@@ -1909,7 +1924,7 @@ export const useEditorStore = create<EditorState>()(
               }
             }
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Auto-sync failed';
+            const msg = errorText(error, 'Auto-sync failed');
             console.error('Auto-sync failed:', error);
             set((state) => { state.lastError = msg; });
           }
@@ -1946,7 +1961,7 @@ export const useEditorStore = create<EditorState>()(
           } catch (error) {
             set((draft) => {
               draft.isSyncing = false;
-              draft.syncError = error instanceof Error ? error.message : 'Sync failed';
+              draft.syncError = errorText(error, 'Sync failed');
             });
             console.error('Audio sync failed:', error);
           }
@@ -2022,7 +2037,7 @@ export const useEditorStore = create<EditorState>()(
               state.timeline.duration = recalculateTimelineDuration(state);
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Auto-cut failed';
+            const msg = errorText(error, 'Auto-cut failed');
             console.error('autoCutOnBeats failed:', error);
             set((s) => { s.lastError = msg; });
           }
@@ -2033,6 +2048,13 @@ export const useEditorStore = create<EditorState>()(
         setPitchEngine: (engine: 'rubberband' | 'standard') => {
           set((state) => { state.pitchEngine = engine; });
         },
+
+        // Read during render so a button can be disabled when there is nothing
+        // to undo. The history arrays live outside the store, but every action
+        // that changes them also changes state, so a component re-renders and
+        // re-reads these at the right moments.
+        canUndo: () => historyPast.length > 0,
+        canRedo: () => historyFuture.length > 0,
 
         undo: () => {
           const current = snapshotState(get());
@@ -2082,6 +2104,11 @@ export const useEditorStore = create<EditorState>()(
               } catch { return track; }
             })
           );
+          // Undo must not reach across projects. Without this the first Ctrl+Z
+          // after opening a project restored the PREVIOUS project's tracks, and
+          // the next autosave then wrote them into the newly opened project.
+          historyPast.length = 0;
+          historyFuture.length = 0;
           set((state) => {
             state.videoTracks = result.videoTracks;
             state.audioTracks = audioTracks;

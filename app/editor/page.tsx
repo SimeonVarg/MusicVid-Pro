@@ -170,6 +170,7 @@ export default function EditorPage() {
   // duplication. Hide it there.
   const showMediaPanel = mode !== 'daw';
 
+  const isRecording = useEditorStore((s) => s.isRecording);
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
   const isAdjustingBpm = useEditorStore((s) => s.isAdjustingBpm);
   const isProcessingVideoSpeed = useEditorStore((s) => s.isProcessingVideoSpeed);
@@ -290,7 +291,14 @@ export default function EditorPage() {
         </div>
 
         {/* Phone sheets - the side columns, reachable from the dock */}
-        <MobileSheet open={isMobile && dockSheet === 'add'} onClose={closeSheet} title={showMediaPanel ? 'Add media' : 'Add track'} height="62dvh">
+        <MobileSheet
+          open={isMobile && dockSheet === 'add'}
+          onClose={closeSheet}
+          title={showMediaPanel ? 'Add media' : 'Add track'}
+          height="62dvh"
+          /* Closing unmounts the recorder, which stops the take. */
+          dismissable={!isRecording}
+        >
           <div className="h-full overflow-y-auto">
             <TrackList />
           </div>

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { execOrThrow, extensionOf, stageInputs } from '@/lib/export/inputStaging';
+import { isMissingAudioStream } from '@/lib/media/ffmpegExec';
 
 type Listener = (e: { message: string }) => void;
 
@@ -74,6 +75,34 @@ describe('execOrThrow', () => {
     const { ff, listeners } = fakeFfmpeg({ exitCode: 1, logs });
     await expect(execOrThrow(ff, [])).rejects.toThrow(/exited with code 1: line 4 \| .*line 11$/);
     expect(listeners.size).toBe(0);
+  });
+});
+
+describe('the "video has no audio stream" fallback this repairs', () => {
+  // VideoProcessor.changeVideoSpeed catches a failed encode and, when the cause
+  // is a missing audio stream, retries video-only. That catch could never fire
+  // while exec() merely RESOLVED with a non-zero code, so speeding up a silent
+  // video died with an unrelated FS error. execOrThrow makes it reachable — and
+  // the message it builds has to still satisfy the fallback's own test.
+  const NO_AUDIO = { test: (m: string) => isMissingAudioStream(m) };
+
+  it('produces a message the no-audio check recognises', async () => {
+    const { ff } = fakeFfmpeg({
+      exitCode: 1,
+      logs: [
+        "Stream specifier ':a' in filtergraph description matches no streams",
+        'Error initializing complex filters.',
+      ],
+    });
+    const err = (await execOrThrow(ff, ['-i', 'in.mp4']).catch((e) => e)) as Error;
+    expect(err).toBeInstanceOf(Error);
+    expect(NO_AUDIO.test(err.message)).toBe(true);
+  });
+
+  it('does not mistake an unrelated failure for a missing audio stream', async () => {
+    const { ff } = fakeFfmpeg({ exitCode: 1, logs: ['Invalid data found when processing input'] });
+    const err = (await execOrThrow(ff, ['-i', 'in.mp4']).catch((e) => e)) as Error;
+    expect(NO_AUDIO.test(err.message)).toBe(false);
   });
 });
 

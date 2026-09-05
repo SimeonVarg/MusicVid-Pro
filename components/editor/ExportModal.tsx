@@ -7,7 +7,8 @@ import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
 import { TimelineCompositor, EXPORT_PRESETS, fastPreset, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
 import { EXPORT_FONT_URL, EXPORT_FONT_FS_PATH } from '@/lib/video/titleStyles';
 import { describeExportFailure, downloadBlob, formatBytes, isTouchDevice, mobileExportWarnings, planDelivery, shareErrorMessage } from '@/lib/export/deliver';
-import { execOrThrow, extensionOf, stageInputs } from '@/lib/export/inputStaging';
+import { execOrThrow, extensionOf, hasAudioStream, stageInputs } from '@/lib/export/inputStaging';
+import { isMissingAudioStream } from '@/lib/media/ffmpegExec';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { fetchFile } from '@ffmpeg/util';
 import {
@@ -21,7 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/RadioGroup';
 import { Progress } from '@/components/ui/Progress';
-import { Check, Download, Music2, Share2, Square, Video } from 'lucide-react';
+import { AudioLines, Check, Download, Music2, Share2, Square, Video } from 'lucide-react';
 
 type QualityTier = 'low' | 'medium' | 'high' | 'ultra';
 /** 'fast' renders the preset at two-thirds size with x264 ultrafast (see fastPreset). */
@@ -68,7 +69,40 @@ export function ExportModal() {
     }
   }, [isMobile]);
 
-  const { audioTracks, exportDialogOpen, musical, setExportDialogOpen, timeline, videoTracks, textTracks, midiTracks } = useEditorStore();
+  const { audioTracks, exportDialogOpen, musical, setExportDialogOpen, timeline, videoTracks, textTracks, midiTracks, splitAudioFromVideo } = useEditorStore();
+
+  // The export mixes audio TRACKS; a video's own sound lives inside the video
+  // file until it is lifted onto the timeline. Offer that in one tap rather
+  // than making the user find "Split audio from video" in a context menu.
+  const [liftingAudio, setLiftingAudio] = useState(false);
+  const liftableVideo = videoTracks.find((t) => t.file && !t.linkedAudioTrackId);
+  const canLiftVideoAudio =
+    exportMode === 'video' &&
+    audioTracks.length === 0 &&
+    !midiTracks.some((t) => !t.isMuted && t.notes.length > 0) &&
+    Boolean(liftableVideo);
+
+  const handleUseVideoAudio = async () => {
+    if (!liftableVideo || liftingAudio) return;
+    setLiftingAudio(true);
+    setExportError(null);
+    try {
+      await splitAudioFromVideo(liftableVideo.id);
+      // A silent video leaves the track count unchanged; say so rather than
+      // letting the same "export blocked" box sit there unexplained.
+      if (useEditorStore.getState().audioTracks.length === 0) {
+        const reason = useEditorStore.getState().lastError ?? '';
+        setExportError(
+          !reason || isMissingAudioStream(reason)
+            ? 'That video has no sound of its own — add a music track to give it audio.'
+            : reason
+        );
+        useEditorStore.setState({ lastError: null });
+      }
+    } finally {
+      setLiftingAudio(false);
+    }
+  };
 
   const inputBytes =
     videoTracks.reduce((sum, t) => sum + (t.file?.size ?? 0), 0) +
@@ -131,8 +165,16 @@ export function ExportModal() {
         errors.push('No video tracks found. Add at least one video track.');
       }
 
+      // Not an error: the export now mixes in a video's own soundtrack when it
+      // has one, and a silent video is a perfectly good thing to export. This
+      // used to block outright, which was a dead end for the commonest case of
+      // all — one clip, its own sound.
       if (audioTracks.length === 0 && !hasMidiAudio) {
-        errors.push('No audio tracks found. Add an audio or instrument track.');
+        warnings.push(
+          videoTracks.some((t) => t.file)
+            ? "No separate audio track: the video's own sound will be used, and if it has none the export is silent."
+            : 'No audio track — this export will be silent.'
+        );
       }
     }
 
@@ -143,7 +185,10 @@ export function ExportModal() {
       errors.push('No exportable video file found. Re-import the video track and try again.');
     }
 
-    if (mode === 'video' && (!mainAudio || !mainAudio.file) && !hasMidiAudio) {
+    // Only when a track exists but its file is gone — with no audio tracks at
+    // all the message above already says it, and two lines for one problem read
+    // like two problems.
+    if (mode === 'video' && audioTracks.length > 0 && (!mainAudio || !mainAudio.file) && !hasMidiAudio) {
       errors.push('No exportable audio file found. Re-import the audio track and try again.');
     }
 
@@ -184,6 +229,13 @@ export function ExportModal() {
 
     if (audioTracks.some((track) => track.isMuted)) {
       warnings.push('Muted audio tracks are ignored for main export source selection.');
+    }
+
+    // The compositor draws every title with the one bundled font, so a picked
+    // font shows in the preview and not in the file. Say so rather than letting
+    // the export quietly disagree with what is on screen.
+    if (textTracks.some((t) => !t.isMuted && t.fontFamily && !/^Inter\b/.test(t.fontFamily))) {
+      warnings.push('Text clips export in the built-in font — the font picker changes the preview only.');
     }
 
     if (mode === 'video') {
@@ -420,12 +472,6 @@ export function ExportModal() {
         fadeInDuration: t.fadeInDuration ?? 0, fadeOutDuration: t.fadeOutDuration ?? 0,
       }));
 
-      const compositor = new TimelineCompositor();
-      const { filterGraph, outputArgs } = compositor.build({
-        videoTracks: compositorVideoTracks, audioTracks: compositorAudioTracks,
-        textTracks: compositorTextTracks, duration: timeline.duration, outputPreset,
-      });
-
       setProgress(20);
       setExportStage('Building filter graph...');
 
@@ -443,6 +489,22 @@ export function ExportModal() {
         if (compositorTextTracks.length > 0) {
           await ffmpeg.writeFile(EXPORT_FONT_FS_PATH, await fetchFile(EXPORT_FONT_URL));
         }
+
+        // A video's own soundtrack belongs in the export — the preview plays
+        // it. Mapping [n:a] on a silent file would kill the graph, so ask the
+        // file first. Skipped when the user already lifted the audio onto its
+        // own track, which would double it.
+        for (let i = 0; i < activeVideoTracks.length; i++) {
+          const track = activeVideoTracks[i];
+          if (track.isMuted || track.linkedAudioTrackId) continue;
+          compositorVideoTracks[i].includeOwnAudio = await hasAudioStream(ffmpeg, staged.paths[i]);
+        }
+
+        const compositor = new TimelineCompositor();
+        const { filterGraph, outputArgs } = compositor.build({
+          videoTracks: compositorVideoTracks, audioTracks: compositorAudioTracks,
+          textTracks: compositorTextTracks, duration: timeline.duration, outputPreset,
+        });
 
         setProgress(40);
         setExportStage('Loading media files...');
@@ -593,6 +655,20 @@ export function ExportModal() {
                     <ul className="list-disc space-y-1 pl-5 text-amber-200">
                       {preflightWarnings.map((w, i) => <li key={i}>{w}</li>)}
                     </ul>
+                    {/* Lifting the sound onto its own track is what you want
+                        when you mean to trim or re-time it; the export uses it
+                        either way. */}
+                    {canLiftVideoAudio && (
+                      <Button
+                        variant="outline"
+                        className="mt-3 h-10 w-full gap-2 border-amber-400/40 text-amber-100 sm:w-auto"
+                        disabled={liftingAudio}
+                        onClick={handleUseVideoAudio}
+                      >
+                        <AudioLines className="h-4 w-4" />
+                        {liftingAudio ? 'Adding the sound…' : "Put the video's sound on the timeline"}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

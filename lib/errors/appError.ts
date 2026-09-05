@@ -70,6 +70,26 @@ export function toAppError(
 }
 
 /**
+ * The human-readable text of anything that was thrown.
+ *
+ * `error instanceof Error ? error.message : fallback` is wrong here: the FFmpeg
+ * worker rejects with a plain STRING (`e.toString()`), and the RubberBand and
+ * analysis workers reject with `{ message }` objects. Every one of those took
+ * the fallback branch, so a real diagnosis ("Output file is empty", "Invalid
+ * argument") was replaced by a generic sentence the user could do nothing with.
+ */
+export function errorText(error: unknown, fallback: string): string {
+  const raw =
+    error instanceof Error ? error.message
+    : typeof error === 'string' ? error
+    : isAppError(error) ? error.message
+    : error && typeof error === 'object' && 'message' in error
+      ? String((error as { message: unknown }).message)
+      : '';
+  return raw.trim() || fallback;
+}
+
+/**
  * Type guard — check if a value is an AppError.
  */
 export function isAppError(value: unknown): value is AppError {

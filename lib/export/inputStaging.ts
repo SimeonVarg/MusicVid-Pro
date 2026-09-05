@@ -14,6 +14,10 @@
 import type { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 
+import { execOrThrow as execOrThrowImpl } from '@/lib/media/ffmpegExec';
+
+export { execOrThrow } from '@/lib/media/ffmpegExec';
+
 // The worker looks the filesystem up by name (`FS.filesystems[fsType]`), and
 // the enum is not exported by every build of @ffmpeg/ffmpeg, so use the name.
 const WORKERFS = 'WORKERFS' as FFFSType;
@@ -82,32 +86,29 @@ export async function stageInputs(ffmpeg: FFmpeg, inputs: StagedInput[]): Promis
   };
 }
 
+/**
+ * Does this input carry an audio stream?
+ *
+ * Needed because mapping `[n:a]` on a silent file fails the WHOLE filter graph,
+ * so a video's own soundtrack can only be mixed in once we know it exists.
+ * `hasEmbeddedAudio` on the track is not an answer — it is set to true for
+ * every import without ever being probed.
+ *
+ * The probe decodes a tenth of a second to null: cheap, and definitive.
+ */
+export async function hasAudioStream(ffmpeg: FFmpeg, path: string): Promise<boolean> {
+  try {
+    await execOrThrowImpl(ffmpeg, ['-i', path, '-map', '0:a:0', '-t', '0.1', '-f', 'null', '-']);
+    return true;
+  } catch {
+    // Either there is no audio stream or the file cannot be read at all; both
+    // mean "do not put [n:a] in the graph".
+    return false;
+  }
+}
+
 /** Sanitised extension for an FFmpeg-side filename; falls back when absent. */
 export function extensionOf(file: File, fallback: string): string {
   const ext = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
   return /^[a-z0-9]{1,5}$/i.test(ext) ? ext.toLowerCase() : fallback;
-}
-
-/**
- * Run FFmpeg and turn a non-zero exit into an Error carrying the last log
- * lines. `exec` resolves with the exit code instead of throwing, so without
- * this the first symptom of a bad filter graph is an "FS error" when the
- * output file that was never written is read back.
- */
-export async function execOrThrow(ffmpeg: FFmpeg, args: string[]): Promise<void> {
-  const tail: string[] = [];
-  const onLog = ({ message }: { message: string }) => {
-    tail.push(message);
-    if (tail.length > 8) tail.shift();
-  };
-  ffmpeg.on('log', onLog);
-  let code: number;
-  try {
-    code = await ffmpeg.exec(args);
-  } finally {
-    ffmpeg.off('log', onLog);
-  }
-  if (code !== 0) {
-    throw new Error(`FFmpeg exited with code ${code}: ${tail.join(' | ')}`);
-  }
 }

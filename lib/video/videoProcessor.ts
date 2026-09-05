@@ -1,6 +1,7 @@
 // lib/video/videoProcessor.ts
 import { fetchFile } from '@ffmpeg/util';
 import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
+import { execOrThrow, isMissingAudioStream } from '@/lib/media/ffmpegExec';
 
 interface ExportVideoOptions {
   fadeInDuration?: number;
@@ -422,7 +423,7 @@ export class VideoProcessor {
     const ptsMultiplier = (1 / speedRatio).toFixed(8);
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
       await ffmpeg.writeFile('sync-input.mp4', await fetchFile(videoFile));
-      await ffmpeg.exec([
+      await execOrThrow(ffmpeg, [
         '-i', 'sync-input.mp4',
         '-filter:v', `setpts=${ptsMultiplier}*PTS`,
         '-an', '-y', `sync-output.${outputFormat}`,
@@ -464,7 +465,7 @@ export class VideoProcessor {
         '-map', '[outv]', '-map', `${videos.length}:a`,
         '-c:v', 'libx264', '-c:a', 'aac', '-y', 'mv-output.mp4',
       ];
-      await ffmpeg.exec(args);
+      await execOrThrow(ffmpeg, args);
       const data = await ffmpeg.readFile('mv-output.mp4') as Uint8Array;
       for (let i = 0; i < videos.length; i++) { try { await ffmpeg.deleteFile(`mv-video${i}.mp4`); } catch { /* ignore */ } }
       try { await ffmpeg.deleteFile('mv-audio.mp3'); } catch { /* ignore */ }
@@ -514,7 +515,7 @@ export class VideoProcessor {
       if (fadeOut > 0 && clipDuration > 0) fadeFilters.push(`fade=t=out:st=${Math.max(0, clipDuration - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
       filterComplex += fadeFilters.length > 0 ? `;[vbase]${fadeFilters.join(',')}[outv]` : ';[vbase]copy[outv]';
 
-      await ffmpeg.exec([
+      await execOrThrow(ffmpeg, [
         '-i', 'exp-video.mp4', '-i', 'exp-audio.mp3',
         '-filter_complex', filterComplex,
         '-map', '[outv]', '-map', '1:a',
@@ -555,7 +556,7 @@ export class VideoProcessor {
 
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
       await ffmpeg.writeFile('metro-input.mp4', await fetchFile(videoFile));
-      await ffmpeg.exec([
+      await execOrThrow(ffmpeg, [
         '-i', 'metro-input.mp4',
         '-filter_complex', filterComplex,
         '-map', '[outv]', '-map', '0:a?',
@@ -571,7 +572,7 @@ export class VideoProcessor {
   async extractAudio(videoFile: File): Promise<Blob> {
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
       await ffmpeg.writeFile('ext-input.mp4', await fetchFile(videoFile));
-      await ffmpeg.exec([
+      await execOrThrow(ffmpeg, [
         '-i', 'ext-input.mp4', '-vn', '-acodec', 'libmp3lame', '-q:a', '2', '-y', 'ext-output.mp3',
       ]);
       const data = await ffmpeg.readFile('ext-output.mp3') as Uint8Array;
@@ -596,7 +597,7 @@ export class VideoProcessor {
     return MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
       await ffmpeg.writeFile('merge-video.mp4', await fetchFile(videoFile));
       await ffmpeg.writeFile('merge-audio.mp3', await fetchFile(audioFile));
-      await ffmpeg.exec([
+      await execOrThrow(ffmpeg, [
         '-i', 'merge-video.mp4', '-i', 'merge-audio.mp3',
         '-filter_complex', filterComplex,
         '-map', '0:v', '-map', '[outa]',
@@ -695,7 +696,7 @@ export class VideoProcessor {
         ffmpeg.on('progress', progressListener);
 
         try {
-          await ffmpeg.exec([
+          await execOrThrow(ffmpeg, [
             '-i', inputFile,
             '-filter_complex', filterComplex,
             '-map', '[vout]', '-map', '[aout]',
@@ -704,12 +705,12 @@ export class VideoProcessor {
           ]);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
-          const noAudio = /Stream specifier ':a'|matches no streams|does not contain any stream/i.test(msg);
+          const noAudio = isMissingAudioStream(msg);
           if (!noAudio) throw new Error(`Video speed processing failed: ${msg}`);
 
           reportProgress('encoding', Math.max(lastEncodingProgress, 5), 'No audio stream, processing video-only...');
           try {
-            await ffmpeg.exec([
+            await execOrThrow(ffmpeg, [
               '-i', inputFile, '-filter:v', videoFilter, '-an',
               '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-y', outputFile,
             ]);

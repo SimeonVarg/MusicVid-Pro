@@ -25,6 +25,17 @@ export interface CompositorVideoTrack {
   fadeInDuration: number;
   fadeOutDuration: number;
   colorAdjustments?: ColorAdjustments;
+  /**
+   * Mix this video's OWN audio stream into the export.
+   *
+   * Only set it when the file is known to have an audio stream — mapping
+   * `[n:a]` on a silent file kills the whole filter graph. The caller probes
+   * for that; see hasAudioStream() in lib/export/inputStaging.ts.
+   *
+   * False when the user has already lifted the audio onto its own track
+   * (linkedAudioTrackId), which would otherwise play the same sound twice.
+   */
+  includeOwnAudio?: boolean;
 }
 
 export interface CompositorAudioTrack {
@@ -123,10 +134,24 @@ export class TimelineCompositor {
       filters.push(`trim=start=${t.trimStart.toFixed(6)}:end=${t.trimEnd.toFixed(6)}`);
       // Reset timestamps so the clip starts at t=0 in the filter chain
       filters.push('setpts=PTS-STARTPTS');
-      // Pad with silence before the clip to place it at its timeline offset
-      if (t.offset > 0) {
-        filters.push(`tpad=start_duration=${t.offset.toFixed(6)}:start_mode=black`);
-      }
+
+      // Pad the clip out to the full timeline, black before and after it.
+      //
+      // Two bugs lived in this one line. `start_mode=black` is not a real tpad
+      // value — the mode is add|clone and the colour is its own option — so
+      // FFmpeg rejected the whole graph with "Invalid argument" and EVERY
+      // export containing a clip at a non-zero offset failed outright.
+      // And padding only the START left each clip stream as long as the clip,
+      // so the `overlay=shortest=1` below ended the output at the
+      // earliest-ending clip: a second clip placed after the first (what every
+      // split produces) never reached the file.
+      const clipLength = Math.max(0, t.trimEnd - t.trimStart);
+      const startPad = Math.max(0, t.offset);
+      const endPad = Math.max(0, input.duration - (t.offset + clipLength));
+      const pad: string[] = [];
+      if (startPad > 0.0005) pad.push(`start_duration=${startPad.toFixed(6)}`, 'start_mode=add');
+      if (endPad > 0.0005) pad.push(`stop_duration=${endPad.toFixed(6)}`, 'stop_mode=add');
+      if (pad.length > 0) filters.push(`tpad=${pad.join(':')}:color=black`);
       // Scale to output resolution
       filters.push(`scale=${outputPreset.resolution},setsar=1`);
       // Per-clip color grade (eq/hue only — safe in every ffmpeg-core build)
@@ -217,6 +242,24 @@ export class TimelineCompositor {
       if (t.volume !== 1) {
         filters.push(`volume=${t.volume.toFixed(4)}`);
       }
+      parts.push(`[${t.fileIndex}:a]${filters.join(',')}[${label}]`);
+      audioLabels.push(`[${label}]`);
+    }
+
+    // ---- A video's own soundtrack ----
+    // The preview plays it, so the export has to as well. Before this, a video
+    // with its own sound exported silent unless the user found "Split audio
+    // from video" in a context menu.
+    for (const t of activeTracks) {
+      if (!t.includeOwnAudio || t.isMuted) continue;
+      const label = `va${t.fileIndex}`;
+      const offsetMs = Math.round(t.offset * 1000);
+      const filters: string[] = [
+        `atrim=start=${t.trimStart.toFixed(6)}:end=${t.trimEnd.toFixed(6)}`,
+        'asetpts=PTS-STARTPTS',
+      ];
+      if (offsetMs > 0) filters.push(`adelay=${offsetMs}|${offsetMs}`);
+      if (t.volume !== 1) filters.push(`volume=${t.volume.toFixed(4)}`);
       parts.push(`[${t.fileIndex}:a]${filters.join(',')}[${label}]`);
       audioLabels.push(`[${label}]`);
     }

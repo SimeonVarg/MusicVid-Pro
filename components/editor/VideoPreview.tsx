@@ -10,6 +10,7 @@ import { setMediaPan } from '@/lib/audio/mediaPan';
 import { showsVideoTools } from '@/stores/editorStore';
 import { toCssFilter } from '@/lib/video/colorAdjustments';
 import { toTitleCss } from '@/lib/video/titleStyles';
+import { ensureTitleFontsLoaded } from '@/lib/video/titleFonts';
 
 type DragMode = 'drag' | 'resize';
 
@@ -127,6 +128,12 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
     () => activeVideoLayers.find((track) => selectedTrackIds.includes(track.id))?.id ?? activeVideoLayers.at(-1)?.id,
     [activeVideoLayers, selectedTrackIds]
   );
+
+  // Title fonts are fetched the moment a title exists, and never before — a
+  // project without text costs nothing, which on a phone is most of them.
+  useEffect(() => {
+    if (textTracks.length > 0) ensureTitleFontsLoaded();
+  }, [textTracks.length]);
 
   const activeTextTracks = textTracks.filter((track) => {
     if (track.isMuted) {

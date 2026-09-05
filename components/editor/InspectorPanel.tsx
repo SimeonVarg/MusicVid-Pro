@@ -19,6 +19,7 @@ import {
   type LookPreset,
 } from '@/lib/video/colorAdjustments';
 import { TITLE_STYLES, TITLE_STYLE_ORDER, type TitleStyle } from '@/lib/video/titleStyles';
+import { ensureTitleFontsLoaded } from '@/lib/video/titleFonts';
 
 type InspectorTab = 'inspect' | 'adjust';
 
@@ -161,6 +162,11 @@ export function InspectorPanel({ embedded = false }: { embedded?: boolean } = {}
     { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
   ];
   const selectedFontOption = fontOptions.find((option) => option.value === selectedTextTrack?.fontFamily);
+
+  // The picker previews each font in its own face, so it needs them loaded.
+  useEffect(() => {
+    if (selectedTextTrack) ensureTitleFontsLoaded();
+  }, [selectedTextTrack]);
 
   const isAudioTrack = (track: AudioTrack | VideoTrack | undefined): track is AudioTrack => {
     return track !== undefined && 'bpm' in track;

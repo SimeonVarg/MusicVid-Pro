@@ -56,20 +56,51 @@ describe('TimelineCompositor', () => {
     expect(filterGraph).toContain('trim=start=2.000000:end=8.000000');
   });
 
-  it('includes tpad for video track with positive offset', () => {
+  // These assert the WHOLE tpad option string on purpose. The old test checked
+  // only the `start_duration=` prefix, so `start_mode=black` — which FFmpeg
+  // rejects, since the mode is add|clone and the colour is a separate option —
+  // passed the suite while failing every real export of an offset clip.
+  it('pads an offset clip with a tpad FFmpeg actually accepts', () => {
     const { filterGraph } = compositor.build({
-      videoTracks: [makeVideoTrack({ offset: 3 })],
+      videoTracks: [makeVideoTrack({ offset: 3, trimStart: 0, trimEnd: 10 })],
       audioTracks: [],
       textTracks: [],
-      duration: 10,
+      duration: 13,
       outputPreset: PRESET,
     });
-    expect(filterGraph).toContain('tpad=start_duration=3.000000');
+    expect(filterGraph).toContain('tpad=start_duration=3.000000:start_mode=add:color=black');
+    expect(filterGraph).not.toContain('start_mode=black');
   });
 
-  it('does NOT include tpad when offset is 0', () => {
+  it('pads the END too so a later clip is not cut off by overlay=shortest', () => {
+    // Clip runs 0–10s on a 30s timeline: without the tail pad the whole output
+    // stopped at 10s, which is why a second clip after a split never appeared.
     const { filterGraph } = compositor.build({
-      videoTracks: [makeVideoTrack({ offset: 0 })],
+      videoTracks: [makeVideoTrack({ offset: 0, trimStart: 0, trimEnd: 10 })],
+      audioTracks: [],
+      textTracks: [],
+      duration: 30,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).toContain('tpad=stop_duration=20.000000:stop_mode=add:color=black');
+  });
+
+  it('pads both sides for a clip in the middle of the timeline', () => {
+    const { filterGraph } = compositor.build({
+      videoTracks: [makeVideoTrack({ offset: 5, trimStart: 0, trimEnd: 10 })],
+      audioTracks: [],
+      textTracks: [],
+      duration: 30,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).toContain(
+      'tpad=start_duration=5.000000:start_mode=add:stop_duration=15.000000:stop_mode=add:color=black'
+    );
+  });
+
+  it('adds no tpad when the clip already fills the timeline', () => {
+    const { filterGraph } = compositor.build({
+      videoTracks: [makeVideoTrack({ offset: 0, trimStart: 0, trimEnd: 10 })],
       audioTracks: [],
       textTracks: [],
       duration: 10,
@@ -210,6 +241,60 @@ describe('TimelineCompositor', () => {
       outputPreset: PRESET,
     });
     expect(withVideo.outputArgs).toContain('-t');
+  });
+});
+
+describe("a video's own soundtrack", () => {
+  // The preview plays a video's own sound, so the export must too. Before this
+  // it did not, and a one-clip project exported silent unless the user found
+  // "Split audio from video" in a context menu.
+  it('is mixed in when the caller has confirmed the file has audio', () => {
+    const { filterGraph } = new TimelineCompositor().build({
+      videoTracks: [makeVideoTrack({ fileIndex: 0, includeOwnAudio: true, offset: 2, volume: 0.5 })],
+      audioTracks: [],
+      textTracks: [],
+      duration: 10,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).toContain('[0:a]atrim=');
+    expect(filterGraph).toContain('adelay=2000|2000');
+    expect(filterGraph).toContain('volume=0.5000');
+    expect(filterGraph).not.toContain('anullsrc'); // no longer a silent export
+  });
+
+  it('is left out unless confirmed — mapping [n:a] on a silent file kills the graph', () => {
+    const { filterGraph } = new TimelineCompositor().build({
+      videoTracks: [makeVideoTrack({ fileIndex: 0 })],
+      audioTracks: [],
+      textTracks: [],
+      duration: 10,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).not.toContain('[0:a]');
+    expect(filterGraph).toContain('anullsrc');
+  });
+
+  it('is left out for a muted video, so mute still silences it', () => {
+    const { filterGraph } = new TimelineCompositor().build({
+      videoTracks: [makeVideoTrack({ fileIndex: 0, includeOwnAudio: true, isMuted: true })],
+      audioTracks: [],
+      textTracks: [],
+      duration: 10,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).toContain('[0:v]trim='); // picture still exported
+    expect(filterGraph).not.toContain('[0:a]');
+  });
+
+  it('mixes with a separate audio track rather than replacing it', () => {
+    const { filterGraph } = new TimelineCompositor().build({
+      videoTracks: [makeVideoTrack({ fileIndex: 0, includeOwnAudio: true })],
+      audioTracks: [makeAudioTrack({ fileIndex: 1 })],
+      textTracks: [],
+      duration: 10,
+      outputPreset: PRESET,
+    });
+    expect(filterGraph).toContain('amix=inputs=2');
   });
 });
 

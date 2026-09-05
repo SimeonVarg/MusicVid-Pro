@@ -18,6 +18,7 @@ export function MobileSheet({
   title,
   children,
   height = '70dvh',
+  dismissable = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +26,12 @@ export function MobileSheet({
   children: ReactNode;
   /** CSS height of the sheet body; dvh so the URL bar never hides the bottom. */
   height?: string;
+  /**
+   * False while the sheet's contents must not be thrown away — a recording in
+   * progress, say. Closing unmounts the children, and unmounting the recorder
+   * stops the take, so a thumb brushing the backdrop lost the whole thing.
+   */
+  dismissable?: boolean;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -32,7 +39,9 @@ export function MobileSheet({
     if (!open) return;
     // A Radix dialog opened from inside the sheet preventDefaults the Escape it
     // consumes; only an unclaimed Escape closes the sheet itself.
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && dismissable) onClose();
+    };
     window.addEventListener('keydown', onKey);
     const previouslyFocused = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
@@ -40,7 +49,7 @@ export function MobileSheet({
       window.removeEventListener('keydown', onKey);
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open, onClose, dismissable]);
 
   if (!open) return null;
 
@@ -50,6 +59,7 @@ export function MobileSheet({
         type="button"
         aria-label="Close"
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+        disabled={!dismissable}
         onClick={onClose}
       />
       <div
@@ -66,7 +76,9 @@ export function MobileSheet({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+            disabled={!dismissable}
+            title={dismissable ? 'Close' : 'Stop the recording first'}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30"
           >
             <X className="h-4 w-4" />
           </button>

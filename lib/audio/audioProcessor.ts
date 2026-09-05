@@ -4,6 +4,7 @@ import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
 import { AudioContextManager } from '@/lib/audio/audioContextManager';
 import { PitchShifter, type PitchShiftOptions } from '@/lib/audio/pitchShifter';
 import { type AppError } from '@/lib/errors/appError';
+import { execOrThrow } from '@/lib/media/ffmpegExec';
 
 export class AudioProcessor {
   private get audioContext(): AudioContext {
@@ -108,7 +109,7 @@ export class AudioProcessor {
       await ffmpeg.writeFile(inputFile, await fetchFile(wavBlob));
 
       try {
-        await ffmpeg.exec([
+        await execOrThrow(ffmpeg, [
           '-i', inputFile,
           '-filter:a', AudioProcessor.buildAtempoChain(ratio),
           '-c:a', 'pcm_s16le',
