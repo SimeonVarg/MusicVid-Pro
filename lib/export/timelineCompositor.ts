@@ -100,7 +100,13 @@ export class TimelineCompositor {
   build(input: CompositorInput): CompositorOutput {
     const { videoTracks, audioTracks, textTracks, outputPreset } = input;
 
-    const activeTracks = videoTracks.filter((t) => !t.isMuted);
+    // A muted VIDEO track still shows its picture - mute is an audio control,
+    // and the preview keeps the frame. The export never reads a video's own
+    // audio stream (only audio tracks feed the mix), so muting changes nothing
+    // here. Dropping the picture instead was how "transpose this video" -
+    // which splits the audio out and mutes the source - exported a black frame
+    // from an endless colour source.
+    const activeTracks = videoTracks;
     const activeAudio = audioTracks.filter((t) => !t.isMuted);
 
     const parts: string[] = [];
@@ -141,8 +147,10 @@ export class TimelineCompositor {
     // ---- Overlay video tracks ----
     let finalVideoLabel = '[vout]';
     if (videoLabels.length === 0) {
-      // No video — create a black background
-      parts.push(`color=black:size=${outputPreset.resolution}:rate=30[vout]`);
+      // No video — create a black background, bounded to the timeline so the
+      // encode cannot run forever (a colour source has no natural end).
+      const d = Math.max(0.1, input.duration || 0.1).toFixed(3);
+      parts.push(`color=black:size=${outputPreset.resolution}:rate=30:d=${d}[vout]`);
     } else if (videoLabels.length === 1) {
       parts.push(`${videoLabels[0]}copy[vout]`);
     } else {
@@ -234,8 +242,24 @@ export class TimelineCompositor {
       '-c:a', outputPreset.audioCodec,
       '-b:a', '192k',
       '-movflags', '+faststart',
+      // Hard stop at the timeline's end: nothing in the graph may keep the
+      // encoder running past what the user can see.
+      ...(input.duration > 0 ? ['-t', input.duration.toFixed(3)] : []),
     ];
 
     return { filterGraph, outputArgs };
   }
+}
+
+/**
+ * The phone-friendly render of a preset: two-thirds the pixels on each axis
+ * (1080p -> 720p, 1080x1080 -> 720x720) and x264's ultrafast preset. Roughly
+ * half the encoder memory and about twice the speed, which is the difference
+ * between a phone finishing a multi-minute export and running out of memory.
+ */
+export function fastPreset(preset: ExportPreset): ExportPreset {
+  const [w, h] = preset.resolution.split(':').map((n) => Number(n));
+  const scale = (n: number) => Math.round((n * 2) / 3 / 2) * 2; // keep it even for yuv420p
+  const resolution = Number.isFinite(w) && Number.isFinite(h) ? `${scale(w)}:${scale(h)}` : preset.resolution;
+  return { ...preset, resolution, preset: 'ultrafast' };
 }

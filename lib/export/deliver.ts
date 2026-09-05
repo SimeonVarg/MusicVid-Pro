@@ -51,6 +51,26 @@ export function planDelivery(isMobile: boolean, file: File, nav?: ShareCapableNa
   };
 }
 
+/**
+ * A message a person can act on for a failed export. The FFmpeg worker
+ * rejects with a plain STRING (`e.toString()`), which `instanceof Error`
+ * misses - that is how every real failure used to read "Export failed.
+ * Please try again." Memory deaths get a hint about what actually helps.
+ */
+export function describeExportFailure(error: unknown, isMobile: boolean): string {
+  const raw =
+    error instanceof Error ? error.message
+    : typeof error === 'string' ? error
+    : error && typeof error === 'object' && 'message' in error ? String((error as { message: unknown }).message)
+    : '';
+  const text = raw.trim() || 'Export failed. Please try again.';
+  if (/out of memory|memory access out of bounds|Aborted\(|RangeError|allocation failed|Memory\.grow|\bOOM\b|terminated/i.test(text)) {
+    const who = isMobile ? 'Your phone' : 'The browser';
+    return `${who} ran out of memory during the encode. Try Fast (720p), a lower quality, or a shorter clip. (${text})`;
+  }
+  return text;
+}
+
 /** Chromium refuses to share files above this total (NotAllowedError). */
 export const SHARE_MAX_BYTES = 50 * 1024 * 1024;
 

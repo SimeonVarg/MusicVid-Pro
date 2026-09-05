@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '@/stores/editorStore';
 import { VideoProcessor } from '@/lib/video/videoProcessor';
 import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
-import { TimelineCompositor, EXPORT_PRESETS, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
+import { TimelineCompositor, EXPORT_PRESETS, fastPreset, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
 import { EXPORT_FONT_URL, EXPORT_FONT_FS_PATH } from '@/lib/video/titleStyles';
-import { downloadBlob, formatBytes, isTouchDevice, mobileExportWarnings, planDelivery, shareErrorMessage } from '@/lib/export/deliver';
+import { describeExportFailure, downloadBlob, formatBytes, isTouchDevice, mobileExportWarnings, planDelivery, shareErrorMessage } from '@/lib/export/deliver';
+import { execOrThrow, extensionOf, stageInputs } from '@/lib/export/inputStaging';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { fetchFile } from '@ffmpeg/util';
 import {
@@ -23,6 +24,8 @@ import { Progress } from '@/components/ui/Progress';
 import { Check, Download, Music2, Share2, Square, Video } from 'lucide-react';
 
 type QualityTier = 'low' | 'medium' | 'high' | 'ultra';
+/** 'fast' renders the preset at two-thirds size with x264 ultrafast (see fastPreset). */
+type RenderMode = 'full' | 'fast';
 
 /** The finished file, held until the user has saved or shared it. */
 type ExportResult = { file: File; kind: 'video' | 'audio'; canShare: boolean };
@@ -51,13 +54,17 @@ export function ExportModal() {
   const [sharing, setSharing] = useState(false);
   const isMobile = useIsMobile();
 
-  // A phone encodes in software on a battery: start it one tier down - once,
-  // so rotating to landscape and back never overwrites a choice the user made.
+  const [renderMode, setRenderMode] = useState<RenderMode>('full');
+
+  // A phone encodes in software on a battery: start it one tier down and at
+  // 720p - once, so rotating to landscape and back never overwrites a choice
+  // the user made.
   const defaultedForMobile = useRef(false);
   useEffect(() => {
     if (isMobile && !defaultedForMobile.current) {
       defaultedForMobile.current = true;
       setQualityTier('medium');
+      setRenderMode('fast');
     }
   }, [isMobile]);
 
@@ -286,21 +293,17 @@ export function ExportModal() {
         const outputFile = `export-output.${audioFormat}`;
 
         const outputBlob = await MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
-          // Write each active audio track to the virtual FS
-          for (let i = 0; i < activeAudioTracks.length; i++) {
-            const f = activeAudioTracks[i].file!;
-            const ext = f.name.split('.').pop() ?? 'mp3';
-            await ffmpeg.writeFile(`export-audio-${i}.${ext}`, await fetchFile(f));
-          }
-
+          // Mount (not copy) each active audio track into the virtual FS
+          const staged = await stageInputs(
+            ffmpeg,
+            activeAudioTracks.map((t, i) => ({ name: `a${i}.${extensionOf(t.file!, 'mp3')}`, file: t.file! }))
+          );
+          try {
           setProgress(30);
           setExportStage('Loading audio files...');
 
           // Build input args
-          const inputArgs: string[] = activeAudioTracks.flatMap((t, i) => {
-            const ext = t.file!.name.split('.').pop() ?? 'mp3';
-            return ['-i', `export-audio-${i}.${ext}`];
-          });
+          const inputArgs: string[] = staged.paths.flatMap((p) => ['-i', p]);
 
           // Build filter: amix for multiple tracks, acopy for single
           const filterParts = activeAudioTracks.map((_, i) => `[${i}:a]`).join('');
@@ -324,7 +327,7 @@ export function ExportModal() {
           };
           ffmpeg.on('progress', progressListener);
           try {
-            await ffmpeg.exec([...inputArgs, '-filter_complex', mixFilter, ...codecArgs, '-y', outputFile]);
+            await execOrThrow(ffmpeg, [...inputArgs, '-filter_complex', mixFilter, ...codecArgs, '-y', outputFile]);
           } finally {
             ffmpeg.off('progress', progressListener);
           }
@@ -333,18 +336,15 @@ export function ExportModal() {
           setExportStage('Finalizing...');
 
           const data = await ffmpeg.readFile(outputFile) as Uint8Array;
-
-          // Clean up temp files
-          for (let i = 0; i < activeAudioTracks.length; i++) {
-            const ext = activeAudioTracks[i].file!.name.split('.').pop() ?? 'mp3';
-            try { await ffmpeg.deleteFile(`export-audio-${i}.${ext}`); } catch { /* ignore */ }
-          }
           try { await ffmpeg.deleteFile(outputFile); } catch { /* ignore */ }
 
           const bytes = new Uint8Array(data.byteLength);
           bytes.set(data);
           const mimeType = audioFormat === 'mp3' ? 'audio/mpeg' : 'audio/wav';
           return new Blob([bytes], { type: mimeType });
+          } finally {
+            await staged.cleanup();
+          }
         });
 
         deliver(new File([outputBlob], `export-audio-${Date.now()}.${audioFormat}`, { type: outputBlob.type }), 'audio');
@@ -352,7 +352,10 @@ export function ExportModal() {
       }
 
       // ── Video branch ───────────────────────────────────────────────────────
-      const activeVideoTracks = videoTracks.filter((t) => !t.isMuted && t.file);
+      // Mute is an audio control: a muted video still shows its picture (the
+      // preview does the same). "Transpose this video" mutes the source after
+      // splitting its audio out, so excluding muted videos exported a black frame.
+      const activeVideoTracks = videoTracks.filter((t) => t.file);
       const activeMidiTracks = midiTracks.filter((t) => !t.isMuted && t.notes.length > 0);
 
       if (activeVideoTracks.length === 0 && activeAudioTracks.length === 0 && activeMidiTracks.length === 0) {
@@ -393,8 +396,9 @@ export function ExportModal() {
       ];
 
       const presetKey = selectedPreset as keyof typeof EXPORT_PRESETS;
+      const basePreset = EXPORT_PRESETS[presetKey] ?? EXPORT_PRESETS.youtube;
       const outputPreset = {
-        ...(EXPORT_PRESETS[presetKey] ?? EXPORT_PRESETS.youtube),
+        ...(renderMode === 'fast' ? fastPreset(basePreset) : basePreset),
         bitrate: QUALITY_TIER_BITRATES[qualityTier].bitrate,
       };
 
@@ -426,14 +430,14 @@ export function ExportModal() {
       setExportStage('Building filter graph...');
 
       const outputBlob = await MediaJobQueue.getInstance().enqueue(async (ffmpeg) => {
-        for (let i = 0; i < activeVideoTracks.length; i++) {
-          await ffmpeg.writeFile(`export-video-${i}.mp4`, await fetchFile(activeVideoTracks[i].file!));
-        }
-        for (let i = 0; i < audioEntries.length; i++) {
-          const f = audioEntries[i].file;
-          const ext = f.name.split('.').pop() ?? 'wav';
-          await ffmpeg.writeFile(`export-audio-${i}.${ext}`, await fetchFile(f));
-        }
+        // Mount the inputs rather than copying them into the WASM heap: a
+        // minutes-long phone video copied three times is what runs a tab out
+        // of memory before the first frame is encoded.
+        const staged = await stageInputs(ffmpeg, [
+          ...activeVideoTracks.map((t, i) => ({ name: `v${i}.${extensionOf(t.file!, 'mp4')}`, file: t.file! })),
+          ...audioEntries.map((t, i) => ({ name: `a${i}.${extensionOf(t.file, 'wav')}`, file: t.file })),
+        ]);
+        try {
         // drawtext needs a real font file — WASM ffmpeg has no system fonts, so
         // a title with no fontfile aborts the whole graph. Load the bundled font.
         if (compositorTextTracks.length > 0) {
@@ -443,12 +447,7 @@ export function ExportModal() {
         setProgress(40);
         setExportStage('Loading media files...');
 
-        const inputArgs: string[] = [];
-        for (let i = 0; i < activeVideoTracks.length; i++) inputArgs.push('-i', `export-video-${i}.mp4`);
-        for (let i = 0; i < audioEntries.length; i++) {
-          const ext = audioEntries[i].file.name.split('.').pop() ?? 'wav';
-          inputArgs.push('-i', `export-audio-${i}.${ext}`);
-        }
+        const inputArgs: string[] = staged.paths.flatMap((p) => ['-i', p]);
 
         let lastProg = 40;
         const progressListener = (event: { progress?: number }) => {
@@ -459,7 +458,7 @@ export function ExportModal() {
         };
         ffmpeg.on('progress', progressListener);
         try {
-          await ffmpeg.exec([...inputArgs, '-filter_complex', filterGraph, ...outputArgs, '-y', 'export-output.mp4']);
+          await execOrThrow(ffmpeg, [...inputArgs, '-filter_complex', filterGraph, ...outputArgs, '-y', 'export-output.mp4']);
         } finally {
           ffmpeg.off('progress', progressListener);
         }
@@ -467,15 +466,13 @@ export function ExportModal() {
         setProgress(92);
         setExportStage('Finalizing...');
         const data = await ffmpeg.readFile('export-output.mp4') as Uint8Array;
-        for (let i = 0; i < activeVideoTracks.length; i++) { try { await ffmpeg.deleteFile(`export-video-${i}.mp4`); } catch { /* ignore */ } }
-        for (let i = 0; i < audioEntries.length; i++) {
-          const ext = audioEntries[i].file.name.split('.').pop() ?? 'wav';
-          try { await ffmpeg.deleteFile(`export-audio-${i}.${ext}`); } catch { /* ignore */ }
-        }
         try { await ffmpeg.deleteFile('export-output.mp4'); } catch { /* ignore */ }
         const bytes = new Uint8Array(data.byteLength);
         bytes.set(data);
         return new Blob([bytes], { type: 'video/mp4' });
+        } finally {
+          await staged.cleanup();
+        }
       });
 
       setProgress(96);
@@ -491,13 +488,18 @@ export function ExportModal() {
       deliver(new File([finalBlob], `export-${selectedPreset}-${Date.now()}.mp4`, { type: 'video/mp4' }), 'video');
     } catch (error) {
       console.error('Export failed:', error);
-      setExportError(error instanceof Error ? error.message : 'Export failed. Please try again.');
+      setExportError(describeExportFailure(error, isMobile));
       setIsExporting(false);
       setProgress(0);
     } finally {
       void wakeLock?.release().catch(() => {});
     }
   };
+
+  const effectiveResolution = (() => {
+    const base = EXPORT_PRESETS[selectedPreset as keyof typeof EXPORT_PRESETS] ?? EXPORT_PRESETS.youtube;
+    return (renderMode === 'fast' ? fastPreset(base) : base).resolution.replace(':', 'x');
+  })();
 
   const selectionCard = (active: boolean) =>
     `relative flex flex-col cursor-pointer rounded-xl border-2 p-4 transition-all ${
@@ -683,6 +685,29 @@ export function ExportModal() {
               </div>
             )}
 
+            {/* Render size - the lever that decides whether a phone finishes */}
+            {exportMode === 'video' && (
+              <div>
+                <p className="section-label mb-2">Render</p>
+                <RadioGroup
+                  value={renderMode}
+                  onValueChange={(v) => setRenderMode(v as RenderMode)}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <label className={selectionCard(renderMode === 'fast')}>
+                    <RadioGroupItem value="fast" className="sr-only" />
+                    <span className="font-semibold">Fast · 720p</span>
+                    <span className="mt-1 text-xs text-zinc-400">Half the memory, about twice as quick. Best on phones.</span>
+                  </label>
+                  <label className={selectionCard(renderMode === 'full')}>
+                    <RadioGroupItem value="full" className="sr-only" />
+                    <span className="font-semibold">Full · 1080p</span>
+                    <span className="mt-1 text-xs text-zinc-400">The preset&apos;s native size.</span>
+                  </label>
+                </RadioGroup>
+              </div>
+            )}
+
             {/* Template */}
             <div>
               <p className="section-label mb-2">Video Template</p>
@@ -728,7 +753,7 @@ export function ExportModal() {
         <div className="border-t border-zinc-800 pt-4 flex items-center justify-between gap-2">
           <p className="hidden text-xs text-zinc-500 sm:block">
             {exportMode === 'video'
-              ? `${QUALITY_TIER_BITRATES[qualityTier].label} · ${presets.find(p => p.id === selectedPreset)?.resolution ?? ''}`
+              ? `${QUALITY_TIER_BITRATES[qualityTier].label} · ${effectiveResolution}`
               : audioFormat.toUpperCase()}
           </p>
           <div className="flex w-full gap-2 sm:w-auto">

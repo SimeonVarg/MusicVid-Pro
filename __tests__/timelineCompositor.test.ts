@@ -2,7 +2,7 @@
  * P2-B-7: Unit tests for TimelineCompositor filter graph generation.
  */
 import { describe, it, expect } from 'vitest';
-import { TimelineCompositor, EXPORT_PRESETS, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
+import { TimelineCompositor, EXPORT_PRESETS, fastPreset, type CompositorVideoTrack, type CompositorAudioTrack, type CompositorTextTrack } from '@/lib/export/timelineCompositor';
 
 const PRESET = EXPORT_PRESETS.youtube;
 
@@ -174,7 +174,9 @@ describe('TimelineCompositor', () => {
     expect(outputArgs).toContain(PRESET.bitrate);
   });
 
-  it('skips muted tracks', () => {
+  it('skips muted AUDIO but keeps a muted video\'s picture (mute is an audio control)', () => {
+    // "Transpose this video" splits the audio out and mutes the source video;
+    // the export must still show the video, not a black frame.
     const { filterGraph } = compositor.build({
       videoTracks: [makeVideoTrack({ isMuted: true })],
       audioTracks: [makeAudioTrack({ isMuted: true })],
@@ -182,8 +184,45 @@ describe('TimelineCompositor', () => {
       duration: 10,
       outputPreset: PRESET,
     });
-    // No trim filter for muted video, no atrim for muted audio
-    expect(filterGraph).not.toContain('trim=');
+    expect(filterGraph).toContain('[0:v]trim=');
     expect(filterGraph).not.toContain('atrim=');
+    expect(filterGraph).not.toContain('color=black');
+  });
+
+  it('bounds the encode to the timeline: -t on the output and a duration on the black source', () => {
+    const noVideo = compositor.build({
+      videoTracks: [],
+      audioTracks: [makeAudioTrack()],
+      textTracks: [],
+      duration: 12.5,
+      outputPreset: PRESET,
+    });
+    expect(noVideo.filterGraph).toMatch(/color=black:size=1920:1080:rate=30:d=12\.500\[vout\]/);
+    const t = noVideo.outputArgs.indexOf('-t');
+    expect(t).toBeGreaterThan(-1);
+    expect(noVideo.outputArgs[t + 1]).toBe('12.500');
+
+    const withVideo = compositor.build({
+      videoTracks: [makeVideoTrack()],
+      audioTracks: [makeAudioTrack()],
+      textTracks: [],
+      duration: 10,
+      outputPreset: PRESET,
+    });
+    expect(withVideo.outputArgs).toContain('-t');
+  });
+});
+
+describe('fastPreset', () => {
+  it('renders at two-thirds the pixels with the ultrafast preset', () => {
+    expect(fastPreset(EXPORT_PRESETS.youtube)).toMatchObject({ resolution: '1280:720', preset: 'ultrafast' });
+    expect(fastPreset(EXPORT_PRESETS['instagram-feed']).resolution).toBe('720:720');
+    expect(fastPreset(EXPORT_PRESETS.tiktok).resolution).toBe('720:1280');
+  });
+
+  it('keeps everything else - bitrate, codecs - unchanged', () => {
+    const fast = fastPreset({ ...EXPORT_PRESETS.youtube, bitrate: '3M' });
+    expect(fast.bitrate).toBe('3M');
+    expect(fast.videoCodec).toBe(EXPORT_PRESETS.youtube.videoCodec);
   });
 });

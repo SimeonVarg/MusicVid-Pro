@@ -294,7 +294,9 @@ describe('Preservation: Text Overlay', () => {
 });
 
 describe('Preservation: Muted Track Exclusion', () => {
-  it('muted video tracks are excluded from the filter graph', () => {
+  it('muted video tracks KEEP their picture (mute is an audio control, as in the preview)', () => {
+    // Sept 5 2026: the Transposer mutes the source video after splitting its
+    // audio out; excluding muted videos exported an endless black frame.
     const compositor = new TimelineCompositor();
     const { filterGraph } = compositor.build({
       videoTracks: [
@@ -307,11 +309,9 @@ describe('Preservation: Muted Track Exclusion', () => {
       outputPreset: DEFAULT_PRESET,
     });
 
-    // No trim filters for muted tracks
-    expect(filterGraph).not.toContain('[0:v]trim=');
-    expect(filterGraph).not.toContain('[1:v]trim=');
-    // Falls back to black background
-    expect(filterGraph).toContain('color=black');
+    expect(filterGraph).toContain('[0:v]trim=');
+    expect(filterGraph).toContain('[1:v]trim=');
+    expect(filterGraph).not.toContain('color=black');
   });
 
   it('muted audio tracks are excluded from the filter graph', () => {

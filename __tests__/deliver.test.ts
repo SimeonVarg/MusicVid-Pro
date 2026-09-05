@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MOBILE_INPUT_WARN_BYTES,
   canShareFile,
+  describeExportFailure,
   downloadBlob,
   formatBytes,
   isTouchDevice,
@@ -22,6 +23,27 @@ describe('isTouchDevice', () => {
     expect(isTouchDevice(win(10, false))).toBe(false); // touchscreen laptop, mouse primary
     expect(isTouchDevice(undefined)).toBe(false);
     expect(isTouchDevice({})).toBe(false);
+  });
+});
+
+describe('describeExportFailure', () => {
+  it('shows the text of a plain-string rejection instead of the generic line', () => {
+    expect(describeExportFailure('ErrnoError: FS error', false)).toBe('ErrnoError: FS error');
+    expect(describeExportFailure(new Error('FFmpeg exited with code 1: x'), false)).toMatch(/exited with code 1/);
+  });
+
+  it('turns a WASM memory death into advice, keeping the raw text', () => {
+    const msg = describeExportFailure('RuntimeError: Aborted(OOM)', true);
+    expect(msg).toMatch(/^Your phone ran out of memory/);
+    expect(msg).toMatch(/Fast \(720p\)/);
+    expect(msg).toMatch(/Aborted\(OOM\)/);
+    expect(describeExportFailure('RuntimeError: memory access out of bounds', false)).toMatch(/^The browser ran out of memory/);
+  });
+
+  it('falls back to the generic line only when there is no text at all', () => {
+    expect(describeExportFailure(undefined, false)).toBe('Export failed. Please try again.');
+    expect(describeExportFailure({ message: '  ' }, false)).toBe('Export failed. Please try again.');
+    expect(describeExportFailure({ message: 'boom' }, false)).toBe('boom');
   });
 });
 

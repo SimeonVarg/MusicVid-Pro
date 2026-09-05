@@ -1,4 +1,47 @@
-# MusicVid Pro — Status (Sept 4, 2026: phone layout + touch + export on phones)
+# MusicVid Pro — Status (Sept 5, 2026: the transposed-video export bug)
+
+## Round 15 (Sept 5): "Export failed" on a transposed backing track
+
+Owner, from his phone: a couple-minute sing-along backing track, transposed up
+a half step for a friend, "says export failed on my phone (on the live site)".
+
+**Root cause (deterministic, not a phone limit).** The Transposer on a video
+calls `splitAudioFromVideo`, which extracts the audio into its own track and
+**mutes the source video** so the two don't play together. The exporter treated
+a muted video as "leave the picture out" (`videoTracks.filter(!isMuted)` in
+both `ExportModal` and `TimelineCompositor`), substituted an **endless**
+`color=black` source, and never passed `-t`. FFmpeg then encoded black frames
+until the tab ran out of memory — on a phone within a couple of minutes — and
+the worker's rejection is a plain string, which `instanceof Error` misses, so
+all the user ever saw was "Export failed. Please try again." The existing test
+even enshrined the wrong behaviour ("skips muted tracks").
+
+**Fixed:**
+- Mute is an audio control: muted videos keep their picture in export (the
+  preview already did). The compositor never reads a video's own audio anyway.
+- `-t <timeline duration>` on every export, and `d=` on the black source, so
+  nothing in the graph can run past the end.
+- `execOrThrow`: FFmpeg's non-zero exit becomes an Error carrying the last 8
+  log lines (before, the first symptom was an "FS error" reading a file that
+  was never written).
+- `describeExportFailure`: string rejections are shown verbatim; WASM memory
+  deaths get "Your phone ran out of memory… try Fast (720p)".
+- **WORKERFS staging** (`lib/export/inputStaging.ts`): inputs are *mounted* into
+  FFmpeg's virtual FS and streamed on demand instead of being held three times
+  (File → ArrayBuffer → WASM heap). Falls back to copying if the core lacks it.
+- **Fast · 720p render mode** (`fastPreset`): two-thirds the pixels, x264
+  ultrafast. Default on phones. Roughly half the encoder memory.
+
+**Verified on the dev server, the owner's exact flow:** demo video muted +
+demo audio pitched +1 through the real RubberBand worker
+(`demo-track-pitched.wav`, 3.0 MB) → export Fast/Medium → **finished in 19 s
+with 1 mount and 0 writeFile copies**, output a 10.4 MB, 1280×720, 16.0 s MP4;
+a frame decoded at t=6 s has 41 distinct colours (mean luma 48) — a picture,
+not black. Compositor tests updated; 37 export-related tests pass.
+
+Still true on a phone: a minutes-long 1080p/HEVC camera clip decodes slowly in
+single-thread WASM. Fast · 720p is the default there now; if a phone still dies,
+the error box now says so and names the fix.
 
 ## Round 14 (Sept 4): the editor works on a phone; export lands in Photos
 
