@@ -122,7 +122,12 @@ export function voicingAt(y: number, chordSize = 3): Voicing {
  * Build the sounding pitches for a chord at a voicing.
  * `baseOctave` is the MIDI octave of the root before any shift (60 = C4).
  */
-export function chordPitches(chord: Chord, voicing: Voicing, baseRoot = 60): number[] {
+export function chordPitches(
+  chord: Chord,
+  voicing: Voicing,
+  baseRoot = 60,
+  lowestPitch?: number
+): number[] {
   const intervals = QUALITY_INTERVALS[chord.quality];
   const rootPc = ((chord.rootPc % 12) + 12) % 12;
   // Root nearest the base, then the quality's intervals on top of it.
@@ -143,7 +148,21 @@ export function chordPitches(chord: Chord, voicing: Voicing, baseRoot = 60): num
     pitches = pitches.map((p) => (p === low ? p + 12 : p));
   }
 
-  return pitches.map((p) => p + voicing.octaveShift * 12).sort((a, b) => a - b);
+  let voiced = pitches.map((p) => p + voicing.octaveShift * 12).sort((a, b) => a - b);
+
+  // An instrument cannot sound below its lowest note. Lift the whole chord by
+  // octaves rather than clamping note by note, which would collapse the shape.
+  //
+  // This is what a guitarist does without thinking: the bass of an open E is
+  // the low E string, but the bass of an open C is C3 on the A string, not the
+  // C below the guitar's range. Without it the pads' bottom band asked for
+  // notes the instrument does not have, and the sampler answered with the
+  // nearest one it did - which is why the low end sounded an octave adrift.
+  if (lowestPitch !== undefined && voiced.length > 0) {
+    while (voiced[0] < lowestPitch) voiced = voiced.map((p) => p + 12);
+  }
+
+  return voiced;
 }
 
 export type StrumDirection = 'down' | 'up' | 'none';

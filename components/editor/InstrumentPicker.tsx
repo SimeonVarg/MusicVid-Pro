@@ -17,7 +17,7 @@
  * The global keyboard shortcuts bail while this is open (useKeyboardShortcuts),
  * so the A–K keys play notes instead of splitting/deleting/playing the timeline.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Search, X } from 'lucide-react';
 import { InstrumentArt } from './InstrumentArt';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
@@ -138,7 +138,6 @@ const CATEGORIES: { key: string; label: string; blurb: string; ids: string[] }[]
   { key: 'synths',  label: 'Synths',            blurb: 'Generated, not sampled',            ids: ['synth-lead', 'synth-bass', 'synth-pad'] },
 ];
 
-const kindLabel = (kind: string) => (kind === 'drums' ? 'RHYTHM' : kind === 'synth' ? 'SYNTH' : 'SAMPLED');
 
 // Computer keys assigned to pads in order; the pads themselves come from the
 // selected kit's own map, so an aux-percussion kit shows congas and shakers
@@ -305,6 +304,24 @@ export function InstrumentPicker() {
 
   const def = selectedId ? getInstrument(selectedId) : null;
   const isDrum = def?.kind === 'drums';
+
+  /**
+   * Where the chord pads sit for THIS instrument.
+   *
+   * The pads used to build every chord around C4 whatever you had selected, so
+   * on a guitar the bottom band reached an E an octave above the low E you can
+   * actually play. A fretted instrument is anchored to its lowest string: one
+   * octave above it, so the pad's bass band lands exactly on that string.
+   */
+  const chordRegister = useMemo(() => {
+    const tuning = selectedId ? TUNINGS[selectedId] : undefined;
+    if (tuning && tuning.length > 0) {
+      const lowestString = Math.min(...tuning);
+      return { baseRoot: lowestString + 12, lowestPitch: lowestString };
+    }
+    const low = def?.defaultRange?.[0];
+    return { baseRoot: 60, lowestPitch: typeof low === 'number' ? low : undefined };
+  }, [selectedId, def]);
   const isBass = selectedId === 'bass-electric';
   // Match on the instrument, its variant, and its section, so "brass" finds
   // the whole section and "mute" would find a muted variant once one exists.
@@ -770,9 +787,6 @@ export function InstrumentPicker() {
                               {card.count > 1 ? `${card.count} types` : s.tagline}
                             </div>
                           </div>
-                          <span className="shrink-0 rounded border border-black/50 bg-black/40 px-1.5 py-0.5 font-mono text-[9px] tracking-wider" style={{ color: s.accent }}>
-                            {kindLabel(card.lead.kind)}
-                          </span>
                         </div>
                       </button>
                     );
@@ -820,8 +834,11 @@ export function InstrumentPicker() {
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {!ready && <span className="rounded bg-black/50 px-2 py-0.5 text-[10px] font-medium text-amber-300">Loading samples...</span>}
-                <span className="font-mono text-[10px] tracking-wider text-white/60">{kindLabel(def!.kind)}</span>
-                <span className="h-2.5 w-2.5 rounded-full transition-all" style={{ background: playing ? skin!.accent : '#3f3f46', boxShadow: playing ? `0 0 10px ${skin!.accent}` : 'none' }} />
+                {/* No SAMPLED/RHYTHM/SYNTH badge and no status LED here. How a
+                    sound is produced is our implementation detail, not a fact
+                    the player can act on, and a dot that lights while you play
+                    only repeats what you can already hear. "Loading samples..."
+                    stays because it explains why a key might not sound yet. */}
               </div>
             </div>
 
@@ -958,7 +975,12 @@ export function InstrumentPicker() {
               </div>
             )}
 
-            <div className="overflow-x-auto bg-[#0a0a0c] px-3 py-5 sm:px-5 sm:py-7">
+            {/* The playing surface takes whatever height is left and no more.
+                It used to size itself from the viewport WIDTH, so a phone held
+                sideways (852x393) grew this modal to 648px inside a 393px
+                screen: the Record button sat below the bottom edge and the page
+                does not scroll, so it could not be reached at all. */}
+            <div className="min-h-0 flex-1 overflow-auto bg-[#0a0a0c] px-3 py-3 sm:px-5 sm:py-5">
               {isDrum ? (
                 <Pads pads={padList} lit={lit} onDown={(p) => noteOn(p, 0.95)} onUp={noteOff} />
               ) : surface === 'chords' ? (
@@ -969,6 +991,8 @@ export function InstrumentPicker() {
                   activeIndex={activeChord}
                   onChordDown={chordDown}
                   onChordUp={chordUp}
+                  baseRoot={chordRegister.baseRoot}
+                  lowestPitch={chordRegister.lowestPitch}
                 />
               ) : surface === 'fret' && TUNINGS[selectedId!] ? (
                 <Fretboard tuning={TUNINGS[selectedId!]} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />

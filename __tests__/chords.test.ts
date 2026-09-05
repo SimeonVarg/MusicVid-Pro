@@ -110,3 +110,45 @@ describe('chord sets and labels', () => {
     expect(chordLabel(set[1])).toBe('C');
   });
 });
+
+describe('an instrument cannot sound below its lowest note', () => {
+  // The pads built every chord around C4 whatever was selected, so on a guitar
+  // the bottom band asked for notes below the low E string. A guitarist voices
+  // an open E off the low E, but an open C off C3 on the A string — never the
+  // C below the instrument.
+  const GUITAR_LOW_E = 40;
+  const bass = voicingAt(1, 3); // bottom of the pad
+
+  it('puts a guitar E chord bass exactly on the low E string', () => {
+    const pitches = chordPitches({ rootPc: 4, quality: 'maj' }, bass, GUITAR_LOW_E + 12, GUITAR_LOW_E);
+    expect(Math.min(...pitches)).toBe(GUITAR_LOW_E);
+  });
+
+  it('lifts a C chord to the octave a guitar can actually play', () => {
+    const pitches = chordPitches({ rootPc: 0, quality: 'maj' }, bass, GUITAR_LOW_E + 12, GUITAR_LOW_E);
+    expect(Math.min(...pitches)).toBe(48); // C3, the open C chord's bass
+    expect(Math.min(...pitches)).toBeGreaterThanOrEqual(GUITAR_LOW_E);
+  });
+
+  it('never voices any chord of the key below the instrument', () => {
+    for (let rootPc = 0; rootPc < 12; rootPc++) {
+      for (const band of [0, 0.25, 0.5, 0.75, 1]) {
+        const v = voicingAt(band, 3);
+        const pitches = chordPitches({ rootPc, quality: 'maj' }, v, GUITAR_LOW_E + 12, GUITAR_LOW_E);
+        expect(Math.min(...pitches)).toBeGreaterThanOrEqual(GUITAR_LOW_E);
+      }
+    }
+  });
+
+  it('shifts by whole octaves, so the chord shape survives', () => {
+    const withFloor = chordPitches({ rootPc: 0, quality: 'maj' }, bass, 52, 40);
+    const without = chordPitches({ rootPc: 0, quality: 'maj' }, bass, 52);
+    expect(withFloor.map((p) => p - withFloor[0])).toEqual(without.map((p) => p - without[0]));
+  });
+
+  it('leaves a keyboard alone when no floor is given', () => {
+    const pitches = chordPitches({ rootPc: 0, quality: 'maj' }, voicingAt(0.5, 3), 60);
+    expect(pitches.length).toBeGreaterThan(0);
+    expect(Math.min(...pitches)).toBeLessThan(72);
+  });
+});

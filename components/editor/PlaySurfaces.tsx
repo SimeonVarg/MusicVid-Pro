@@ -168,6 +168,8 @@ export function ChordPads({
   onChordDown,
   onChordUp,
   activeIndex,
+  baseRoot = 60,
+  lowestPitch,
 }: {
   chords: Chord[];
   strumSpread: number;
@@ -175,6 +177,16 @@ export function ChordPads({
   onChordDown: (index: number, pitches: number[], offsets: number[], voicingName: string) => void;
   onChordUp: () => void;
   activeIndex: number | null;
+  /**
+   * MIDI pitch the chord roots are built around. It has to follow the
+   * instrument: the pads were hard-coded to 60 (C4), so on a guitar the bottom
+   * of the pad reached an E an octave above the low E you can actually play.
+   * Pass the instrument's lowest usable note - for a guitar that is its lowest
+   * string, MIDI 40.
+   */
+  baseRoot?: number;
+  /** Lowest note the instrument can actually sound (a guitar's low E is 40). */
+  lowestPitch?: number;
 }) {
   const padRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -185,13 +197,19 @@ export function ChordPads({
     const y = (clientY - r.top) / r.height;      // 0 at top, 1 at bottom
     const size = QUALITY_INTERVALS[chords[i].quality].length;
     const voicing = voicingAt(y, size);
-    const pitches = chordPitches(chords[i], voicing, 60);
+    const pitches = chordPitches(chords[i], voicing, baseRoot, lowestPitch);
     const offsets = strumOffsets(pitches.length, strumSpread, direction);
     onChordDown(i, pitches, offsets, voicing.name);
   };
 
   return (
-    <div className="mx-auto grid w-full min-w-[320px] max-w-4xl grid-cols-4 gap-2 sm:grid-cols-8 sm:gap-2.5" style={{ touchAction: 'none' }}>
+    /* Height comes from the space available, not from the viewport width:
+       a phone held sideways is wide and short, and width-keyed heights made
+       the pads taller than the screen. */
+    <div
+      className="mx-auto grid h-full min-h-[132px] w-full min-w-[320px] max-w-4xl grid-cols-4 gap-2 sm:grid-cols-8 sm:gap-2.5"
+      style={{ touchAction: 'none' }}
+    >
       {chords.map((chord, i) => {
         const on = activeIndex === i;
         return (
@@ -203,7 +221,7 @@ export function ChordPads({
             onMouseLeave={onChordUp}
             onTouchStart={(e) => { e.preventDefault(); press(i, e.touches[0].clientY); }}
             onTouchEnd={(e) => { e.preventDefault(); onChordUp(); }}
-            className="relative flex h-52 flex-col sm:h-64 md:h-72 lg:h-80 xl:h-96 2xl:h-[28rem] flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
+            className="relative flex h-full min-h-[132px] flex-col items-center justify-between overflow-hidden rounded-xl px-1 py-2 ring-1 transition-transform active:scale-[0.99]"
             style={{
               background: on
                 ? 'linear-gradient(180deg,#c9f24d,#8fbf16)'
