@@ -43,19 +43,37 @@ const OPEN_W = 34;
 /** Fret x as CSS, measured across the neck to the right of the open column. */
 const fretLeft = (p: number) => `calc(${OPEN_W}px + ${p} * (100% - ${OPEN_W}px))`;
 
+/** Vertical centre of string `si`, and the height of its band. */
+const STRING_TOP = 22;
+const STRING_STRIDE = 26;
+
 export function Fretboard({
   tuning,
   lit,
   onDown,
   onUp,
+  voicing,
+  onStrumNote,
 }: {
   tuning: number[];
   lit: Set<number>;
   onDown: (pitch: number) => void;
   onUp: (pitch: number) => void;
+  /**
+   * Frets held by the fretting hand, low string first; `null` = a string that
+   * is not played. When present, dragging across the neck strums THIS shape
+   * instead of picking a fret from where the pointer happens to be.
+   */
+  voicing?: (number | null)[];
+  /** A string sounded by dragging across it, with the speed of the hand. */
+  onStrumNote?: (pitch: number, velocity: number) => void;
 }) {
   const pos = useMemo(() => fretPositions(FRET_COUNT), []);
-  const strings = [...tuning].reverse(); // draw high string at the top
+  // The LOW string is drawn at the top: this is the player's-eye view, looking
+  // down at your own guitar. It has to be this way round for strumming — with
+  // the high E on top, dragging downward would sound high-to-low, which is an
+  // UP-stroke, and every strum gesture on the surface would be inverted.
+  const strings = [...tuning];
   // Bumping a string's counter remounts its element, which restarts the damped
   // vibration animation - so re-striking the same string re-triggers it.
   const [strikes, setStrikes] = useState<number[]>(() => strings.map(() => 0));
@@ -65,10 +83,108 @@ export function Fretboard({
     return next;
   });
 
+  // ── Strumming with the pointer ───────────────────────────────────────────
+  const neckRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ y: number; t: number; string: number | null } | null>(null);
+
+  /** Which string the pointer is on, or null if it is between/outside them. */
+  const stringAt = (yLocal: number): number | null => {
+    const si = Math.round((yLocal - STRING_TOP) / STRING_STRIDE);
+    if (si < 0 || si >= strings.length) return null;
+    return Math.abs(yLocal - (STRING_TOP + si * STRING_STRIDE)) <= STRING_STRIDE / 2 ? si : null;
+  };
+
+  /** Which fret the pointer is over, 0 = the open-string column. */
+  const fretAt = (xLocal: number, width: number): number => {
+    if (xLocal <= OPEN_W) return 0;
+    const t = (xLocal - OPEN_W) / Math.max(1, width - OPEN_W);
+    for (let f = 1; f <= FRET_COUNT; f++) if (t <= pos[f]) return f;
+    return FRET_COUNT;
+  };
+
+  /** The note a string sounds: the held shape if there is one, else the fret under the pointer. */
+  const pitchFor = (si: number, xLocal: number, width: number): number | null => {
+    if (voicing) {
+      const fret = voicing[si];
+      // A muted string makes no sound. Do not fake a click - we have no sample
+      // for one, and inventing a tone would break the real-samples rule.
+      return fret === null || fret === undefined ? null : strings[si] + fret;
+    }
+    return strings[si] + fretAt(xLocal, width);
+  };
+
+  const sound = (si: number, xLocal: number, width: number, velocity: number) => {
+    const pitch = pitchFor(si, xLocal, width);
+    if (pitch === null) return;
+    strike(si);
+    if (onStrumNote) onStrumNote(pitch, velocity);
+    else onDown(pitch);
+  };
+
+  const handleMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const el = neckRef.current;
+    if (!drag || !el) return;
+    const rect = el.getBoundingClientRect();
+
+    // Coalesced events are not optional here. The six-string band is 130px and
+    // a medium strum crosses it in 55ms, so at 60Hz a plain pointermove gives
+    // three samples for six strings — half of them would never sound.
+    const samples = typeof e.nativeEvent.getCoalescedEvents === 'function'
+      ? e.nativeEvent.getCoalescedEvents()
+      : [e.nativeEvent];
+
+    for (const sample of samples.length > 0 ? samples : [e.nativeEvent]) {
+      const yLocal = sample.clientY - rect.top;
+      const xLocal = sample.clientX - rect.left;
+      const now = sample.timeStamp || performance.now();
+      const dt = Math.max(1, now - drag.t);
+      // Hand speed sets how hard the strings are hit. A glacial drag is 0.15
+      // px/ms and a real strum crosses the neck at about 2.4 px/ms.
+      const speed = Math.abs(yLocal - drag.y) / dt;
+      const velocity = Math.max(0.15, Math.min(1, 0.25 + (0.75 * (speed - 0.15)) / (1.6 - 0.15)));
+
+      const si = stringAt(yLocal);
+      if (si !== null && si !== drag.string) {
+        // Sound EVERY string the hand crossed since the last sample, in order,
+        // so a fast flick does not skip the strings between two samples.
+        const from = drag.string === null ? si : drag.string;
+        const step = si > from ? 1 : -1;
+        for (let s = from === si ? si : from + step; ; s += step) {
+          if (s >= 0 && s < strings.length) sound(s, xLocal, rect.width, velocity);
+          if (s === si) break;
+        }
+        drag.string = si;
+      }
+      drag.y = yLocal;
+      drag.t = now;
+    }
+  };
+
   return (
     <div
+      ref={neckRef}
       className="relative mx-auto w-full min-w-[560px] max-w-4xl select-none overflow-hidden rounded-lg ring-1 ring-black/70"
       style={{ height: 44 + strings.length * 26, background: 'linear-gradient(175deg,#3a2413,#22150a 60%,#150d05)', touchAction: 'none' }}
+      onPointerDown={(e) => {
+        const el = neckRef.current;
+        if (!el) return;
+        // Capture so the strum keeps sounding if the hand runs off the neck.
+        el.setPointerCapture?.(e.pointerId);
+        const rect = el.getBoundingClientRect();
+        const yLocal = e.clientY - rect.top;
+        const xLocal = e.clientX - rect.left;
+        const si = stringAt(yLocal);
+        dragRef.current = { y: yLocal, t: e.timeStamp || performance.now(), string: si };
+        if (si !== null) sound(si, xLocal, rect.width, 0.9);
+      }}
+      onPointerMove={handleMove}
+      onPointerUp={(e) => {
+        neckRef.current?.releasePointerCapture?.(e.pointerId);
+        dragRef.current = null;
+      }}
+      onPointerCancel={() => { dragRef.current = null; }}
+      onPointerLeave={() => { dragRef.current = null; }}
     >
       {/* open-string strip, then the nut. Fret 0 needs real estate of its own -
           the nut has no width, so without this column open strings are unplayable. */}
@@ -99,7 +215,9 @@ export function Fretboard({
 
       {/* strings + fret hit targets */}
       {strings.map((open, si) => {
-        const gauge = 1.2 + (si / (strings.length - 1)) * 2.2; // thin high → thick low
+        // Thick wound strings at the top, thin plain ones below — the neck now
+        // reads low-to-high downward, which is the direction a downstroke moves.
+        const gauge = 3.4 - (si / (strings.length - 1)) * 2.2;
         const y = 22 + si * 26;
         return (
           <React.Fragment key={si}>
@@ -108,7 +226,7 @@ export function Fretboard({
               className={`pointer-events-none absolute inset-x-0 ${strikes[si] ? 'string-vibrating' : ''}`}
               style={{
                 top: y, height: gauge, transform: 'translateY(-50%)',
-                background: si > strings.length - 3
+                background: si < 3
                   ? 'linear-gradient(180deg,#d8cba6,#8d8060)'
                   : 'linear-gradient(180deg,#f4f5f7,#a8aeb5)',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.55)',
@@ -125,13 +243,12 @@ export function Fretboard({
               return (
                 <button
                   key={f}
-                  onMouseDown={(e) => { e.preventDefault(); strike(si); onDown(pitch); }}
-                  onMouseUp={() => onUp(pitch)}
-                  onMouseLeave={() => onUp(pitch)}
-                  onTouchStart={(e) => { e.preventDefault(); strike(si); onDown(pitch); }}
-                  onTouchEnd={(e) => { e.preventDefault(); onUp(pitch); }}
+                  onClick={() => { strike(si); onDown(pitch); onUp(pitch); }}
                   className="absolute cursor-pointer"
-                  style={{ ...box, top: y - 13, height: 26 }}
+                  // The neck itself owns the pointer, so one drag can strum
+                  // across strings instead of each fret swallowing the gesture.
+                  // The buttons stay for keyboard and screen-reader use.
+                  style={{ ...box, top: y - 13, height: 26, pointerEvents: 'none' }}
                   aria-label={`String ${strings.length - si}, fret ${f}`}
                 >
                   {on && (

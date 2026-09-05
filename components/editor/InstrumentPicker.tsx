@@ -343,8 +343,32 @@ export function InstrumentPicker() {
   const neckTuningRef = useRef(neckTuning); neckTuningRef.current = neckTuning;
   /** Audio-clock time recording started, so strums are placed by when they SOUND. */
   const recStartAudioRef = useRef(0);
+  /** The chord the fretting hand is holding on the neck, if any. */
+  const [latchedChord, setLatchedChord] = useState<Chord | null>(null);
   const numeratorRef = useRef(4); numeratorRef.current = numerator;
   const strumDirRef = useRef<StrumDirection>('down'); strumDirRef.current = strumDir;
+
+  const recordStrokeRef = useRef<((n: { pitch: number; offsetSec: number; velocity: number; durationSec: number }[], at: number) => void) | null>(null);
+
+  /** The shape the neck is holding, or null for free picking. */
+  const fretVoicing = useMemo(
+    () => (latchedChord && neckTuning ? voiceOnNeck(latchedChord, neckTuning) : null),
+    [latchedChord, neckTuning]
+  );
+
+  /**
+   * One string sounded by dragging across the neck.
+   *
+   * The hand's own speed decides the timing here — each string sounds when the
+   * pointer actually crosses it — so this deliberately does NOT go through the
+   * strum spread setting. That is the whole point of the gesture.
+   */
+  const strumNote = useCallback((pitch: number, velocity: number) => {
+    if (!selectedId) return;
+    midiPlaybackEngine.noteDown(selectedId, pitch, velocity);
+    if (!isRecRef.current) return;
+    recordStrokeRef.current?.([{ pitch, offsetSec: 0, velocity, durationSec: 1.2 }], midiPlaybackEngine.contextTime());
+  }, [selectedId]);
 
   /**
    * Put one stroke into the take.
@@ -381,6 +405,7 @@ export function InstrumentPicker() {
     },
     []
   );
+  recordStrokeRef.current = recordStroke;
 
   /**
    * Where the chord pads sit for THIS instrument.
@@ -1133,7 +1158,48 @@ export function InstrumentPicker() {
                   lowestPitch={chordRegister.lowestPitch}
                 />
               ) : surface === 'fret' && neckTuning ? (
-                <Fretboard tuning={neckTuning} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
+                <div className="space-y-2">
+                  {/* The fretting hand. Latch a chord here and the neck holds
+                      that shape, so dragging across the strings strums it —
+                      one pointer cannot be two hands at once. */}
+                  <div className="flex flex-wrap items-center justify-center gap-1">
+                    <span className="mr-1 text-[10px] uppercase tracking-wider text-zinc-600">Hold</span>
+                    {activeChords.map((c, i) => (
+                      <button
+                        key={`${c.rootPc}-${c.quality}-${i}`}
+                        onClick={() => setLatchedChord((cur) => (cur && cur.rootPc === c.rootPc && cur.quality === c.quality ? null : c))}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          latchedChord && latchedChord.rootPc === c.rootPc && latchedChord.quality === c.quality
+                            ? 'border-signal-400/60 bg-signal-400/20 text-signal-300'
+                            : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {chordLabel(c)}
+                      </button>
+                    ))}
+                    {latchedChord && (
+                      <button
+                        onClick={() => setLatchedChord(null)}
+                        className="rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-500 hover:bg-zinc-800"
+                      >
+                        free
+                      </button>
+                    )}
+                  </div>
+                  <Fretboard
+                    tuning={neckTuning}
+                    lit={lit}
+                    onDown={(p) => noteOn(p, 0.9)}
+                    onUp={noteOff}
+                    voicing={fretVoicing ?? undefined}
+                    onStrumNote={strumNote}
+                  />
+                  <p className="text-center text-[11px] text-zinc-500">
+                    {latchedChord
+                      ? `Holding ${chordLabel(latchedChord)} — drag across the strings to strum it. Down the neck is a downstroke.`
+                      : 'Drag across the strings to rake them, or hold a chord above to strum a shape.'}
+                  </p>
+                </div>
               ) : (
                 <Keyboard startPitch={startPitch} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
               )}
