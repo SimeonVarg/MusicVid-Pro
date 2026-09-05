@@ -23,7 +23,11 @@ import { InstrumentArt } from './InstrumentArt';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog';
 import { useEditorStore } from '@/stores/editorStore';
 import { INSTRUMENTS, getInstrument, drumPads, FAMILY_LABEL, FAMILY_ORDER, instrumentCards, variantsOf, type InstrumentFamily } from '@/lib/midi/instruments';
-import { Fretboard, ChordPads, TUNINGS } from './PlaySurfaces';
+import { Fretboard, ChordPads } from './PlaySurfaces';
+import { tuningFor, voiceOnNeck, soundingPitches } from '@/lib/midi/fretVoicing';
+import { strumStroke, interStringSec, type StrumSpeed } from '@/lib/midi/strum';
+import { STRUM_PATTERNS, patternById } from '@/lib/midi/strumPatterns';
+import { strumEngine } from '@/lib/midi/strumEngine';
 import {
   type Chord, type ChordQuality, type StrumDirection,
   chordSetForKey, chordLabel, NOTE_NAMES, QUALITY_GROUPS, QUALITY_LABEL,
@@ -254,6 +258,16 @@ function playClick(accent: boolean) {
   } catch { /* audio not ready - ignore */ }
 }
 
+
+/** A short, honest description of where the shape sits on the neck. */
+function chordShapeName(voicing: (number | null)[]): string {
+  const fretted = voicing.filter((f): f is number => f !== null && f > 0);
+  const sounding = voicing.filter((f) => f !== null).length;
+  if (fretted.length === 0) return `open · ${sounding} strings`;
+  const low = Math.min(...fretted);
+  return low <= 1 ? `open position · ${sounding} strings` : `${low}th fret · ${sounding} strings`;
+}
+
 export function InstrumentPicker() {
   const instrumentPickerOpen = useEditorStore((s) => s.instrumentPickerOpen);
   const setInstrumentPickerOpen = useEditorStore((s) => s.setInstrumentPickerOpen);
@@ -306,6 +320,69 @@ export function InstrumentPicker() {
   const isDrum = def?.kind === 'drums';
 
   /**
+   * The strings of this instrument, if it has any.
+   *
+   * Derived rather than looked up in a table: only two of the thirteen fretted
+   * instruments had a tuning entry, so eleven guitars and basses opened on a
+   * piano keyboard and could not be strummed at all.
+   */
+  const neckTuning = useMemo(
+    () => (selectedId && def ? tuningFor(selectedId, def.family, def.group) : undefined),
+    [selectedId, def]
+  );
+
+  // ── Auto-strum ───────────────────────────────────────────────────────────
+  const [autoStrum, setAutoStrum] = useState(false);
+  const [strumPatternId, setStrumPatternId] = useState('old-faithful');
+  const [strumSpeed, setStrumSpeed] = useState<StrumSpeed>('medium');
+  const [strumFeel, setStrumFeel] = useState(0.35);
+  const autoStrumRef = useRef(autoStrum); autoStrumRef.current = autoStrum;
+  const strumPatternRef = useRef(strumPatternId); strumPatternRef.current = strumPatternId;
+  const strumSpeedRef = useRef(strumSpeed); strumSpeedRef.current = strumSpeed;
+  const strumFeelRef = useRef(strumFeel); strumFeelRef.current = strumFeel;
+  const neckTuningRef = useRef(neckTuning); neckTuningRef.current = neckTuning;
+  /** Audio-clock time recording started, so strums are placed by when they SOUND. */
+  const recStartAudioRef = useRef(0);
+  const numeratorRef = useRef(4); numeratorRef.current = numerator;
+  const strumDirRef = useRef<StrumDirection>('down'); strumDirRef.current = strumDir;
+
+  /**
+   * Put one stroke into the take.
+   *
+   * The stroke's ANCHOR is quantised, never the individual strings. Rounding
+   * each string to the nearest 1/16 put all six on the same grid line — a 55ms
+   * strum is 0.11 of a beat, well inside one 1/16 — so every recorded strum
+   * came back as a block chord. The strum survived playing and vanished on
+   * record, which is the worst kind of bug: it looks like it works.
+   *
+   * Times come from the AUDIO clock the notes were scheduled against, not from
+   * when the handler happened to run, because the 11ms we care about is smaller
+   * than the drift between those two clocks.
+   */
+  const recordStroke = useCallback(
+    (notes: { pitch: number; offsetSec: number; velocity: number; durationSec: number }[], atContextTime: number) => {
+      if (!isRecRef.current || notes.length === 0) return;
+      const b = bpmRef.current;
+      const anchorSec = atContextTime - recStartAudioRef.current;
+      if (anchorSec < -0.06) return;
+      let anchorBeat = secondsToBeats(Math.max(0, anchorSec), b);
+      if (quantRef.current) anchorBeat = Math.round(anchorBeat / 0.25) * 0.25;
+      for (const n of notes) {
+        takeRef.current.push({
+          id: crypto.randomUUID(),
+          pitch: n.pitch,
+          // The offset is re-applied AFTER rounding, so the rake survives.
+          startBeat: Math.max(0, anchorBeat + secondsToBeats(n.offsetSec, b)),
+          durationBeats: Math.max(0.1, secondsToBeats(n.durationSec, b)),
+          velocity: n.velocity,
+        });
+      }
+      setTakeCount(takeRef.current.length);
+    },
+    []
+  );
+
+  /**
    * Where the chord pads sit for THIS instrument.
    *
    * The pads used to build every chord around C4 whatever you had selected, so
@@ -314,7 +391,7 @@ export function InstrumentPicker() {
    * octave above it, so the pad's bass band lands exactly on that string.
    */
   const chordRegister = useMemo(() => {
-    const tuning = selectedId ? TUNINGS[selectedId] : undefined;
+    const tuning = neckTuning;
     if (tuning && tuning.length > 0) {
       const lowestString = Math.min(...tuning);
       return { baseRoot: lowestString + 12, lowestPitch: lowestString };
@@ -392,25 +469,67 @@ export function InstrumentPicker() {
   /** A chord press sounds every tone with its strum offset and lights the pad. */
   const chordDown = useCallback((index: number, pitches: number[], offsets: number[], voicingName: string) => {
     if (!selectedId) return;
-    chordHeldRef.current = { pitches, offsets, startMs: performance.now() };
+    const tuning = neckTuningRef.current;
+    const chord = activeChords[index];
+
+    /**
+     * On an instrument with strings, sound the shape a hand would make.
+     *
+     * The pads' own pitches are an interval stack — three notes for a major
+     * chord. A real open E is six sounding strings with notes doubled, and that
+     * doubling is what makes a strum audible: three notes at 11ms apart span
+     * 22ms, below the point where the ear separates them at all, so it fuses
+     * into one attack. Everything else keeps the pads' voicing.
+     */
+    const useNeck = Boolean(tuning && chord);
+    const voicing = useNeck ? voiceOnNeck(chord, tuning!) : null;
+    const strokeNotes = useNeck
+      ? strumStroke(voicing!, tuning!, {
+          bpm: bpmRef.current,
+          direction: strumDirRef.current === 'up' ? 'up' : 'down',
+          speed: strumSpeedRef.current,
+          feel: strumFeelRef.current,
+          durationSec: 2.0,
+        })
+      : pitches.map((p, i) => ({ pitch: p, offsetSec: offsets[i], velocity: 0.85, durationSec: 2.0 }));
+
+    const soundingNow = strokeNotes.map((n) => n.pitch);
+    chordHeldRef.current = { pitches: soundingNow, offsets: strokeNotes.map((n) => n.offsetSec), startMs: performance.now() };
     setActiveChord(index);
-    setVoicingHint(voicingName);
-    setLit(new Set(pitches));
-    // The WHOLE chord always sounds, even on a quick tap: a strummed note that
-    // lands after the release still fires. Sustain then decides whether it rings
-    // out or stops with your finger.
-    pitches.forEach((p, i) => {
-      const delayMs = offsets[i] * 1000;
-      if (delayMs <= 0) midiPlaybackEngine.noteDown(selectedId, p, 0.85);
-      else window.setTimeout(() => midiPlaybackEngine.noteDown(selectedId, p, 0.85), delayMs);
-    });
-  }, [selectedId]);
+    setVoicingHint(useNeck ? chordShapeName(voicing!) : voicingName);
+    setLit(new Set(soundingNow));
+
+    if (autoStrumRef.current && useNeck) {
+      // Hold the chord and the hand keeps strumming, in time with the project.
+      strumEngine.start({
+        pattern: patternById(strumPatternRef.current),
+        voicing: voicing!,
+        tuning: tuning!,
+        bpm: bpmRef.current,
+        timeSignature: { numerator: numeratorRef.current, denominator: 4 },
+        speed: strumSpeedRef.current,
+        feel: strumFeelRef.current,
+        play: (notes, at) => { midiPlaybackEngine.strum(selectedId, notes, at); },
+        onStroke: (notes, at) => recordStroke(notes, at),
+      });
+      return;
+    }
+
+    // A single stroke, scheduled on the AUDIO clock. setTimeout cannot hold an
+    // 11ms gap: its floor is ~4ms, it is clamped further under load, and it
+    // gives no ordering guarantee, so strings arrived out of time and sometimes
+    // out of order.
+    const anchor = midiPlaybackEngine.strum(selectedId, strokeNotes);
+    if (anchor !== null) recordStroke(strokeNotes, anchor);
+  }, [selectedId, activeChords, recordStroke]);
 
   const chordUp = useCallback(() => {
     const held = chordHeldRef.current;
     chordHeldRef.current = null;
     setActiveChord(null);
     setLit(new Set());
+    // Finish the stroke in progress rather than cutting the hand off mid-rake.
+    if (strumEngine.isRunning) strumEngine.stop();
     if (selectedId && held && !chordSustainRef.current) {
       // No sustain: the chord stops with your finger, but never before every
       // strummed tone has actually been struck.
@@ -418,26 +537,6 @@ export function InstrumentPicker() {
       const stop = () => held.pitches.forEach((p) => midiPlaybackEngine.noteUp(selectedId, p));
       if (tail <= 0) stop(); else window.setTimeout(stop, tail + 40);
     }
-    if (!held || !isRecRef.current) return;
-    const b = bpmRef.current;
-    const heldSec = Math.max(0.12, (performance.now() - held.startMs) / 1000);
-    const base = (held.startMs - recStartRef.current) / 1000;
-    held.pitches.forEach((pitch, i) => {
-      // Each tone lands at the chord's start plus its own strum offset, so the
-      // recorded take keeps the strum instead of flattening to a block chord.
-      let startBeat = secondsToBeats(base + held.offsets[i], b);
-      if (startBeat < -0.06) return;
-      startBeat = Math.max(0, startBeat);
-      if (quantRef.current) startBeat = Math.round(startBeat / 0.25) * 0.25;
-      takeRef.current.push({
-        id: crypto.randomUUID(),
-        pitch,
-        startBeat,
-        durationBeats: Math.max(0.25, secondsToBeats(heldSec, b)),
-        velocity: 0.85,
-      });
-    });
-    setTakeCount(takeRef.current.length);
   }, [selectedId]);
 
   const startRecording = useCallback(() => {
@@ -450,6 +549,10 @@ export function InstrumentPicker() {
       setCountIn(null);
       countInRef.current = null;
       recStartRef.current = performance.now();
+      // Both clocks, captured together. Strum offsets live at 11ms, which is
+      // smaller than the drift between performance.now() and the audio clock,
+      // so recorded strums must be measured against the clock they sounded on.
+      recStartAudioRef.current = midiPlaybackEngine.contextTime();
       isRecRef.current = true;
       setIsRecording(true);
       if (metroOn) {
@@ -518,7 +621,7 @@ export function InstrumentPicker() {
   // with a piano keyboard. Everything else starts on keys.
   useEffect(() => {
     if (!selectedId) return;
-    setSurface(TUNINGS[selectedId] ? 'fret' : 'keys');
+    setSurface(tuningFor(selectedId, getInstrument(selectedId).family, getInstrument(selectedId).group) ? 'fret' : 'keys');
     setCustomChords(null);
   }, [selectedId]);
 
@@ -526,6 +629,7 @@ export function InstrumentPicker() {
   useEffect(() => {
     if (!instrumentPickerOpen) {
       stopRecording();
+      strumEngine.stop();
       midiPlaybackEngine.releaseAllLive();
       heldRef.current.clear();
       takeRef.current = [];
@@ -848,7 +952,7 @@ export function InstrumentPicker() {
               <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-950/60 px-3 py-2 sm:px-5">
                 <div className="flex items-center gap-0.5 rounded-lg border border-zinc-800 bg-zinc-900/70 p-0.5">
                   {([
-                    ...(TUNINGS[selectedId!] ? [{ id: 'fret' as const, label: isBass ? 'Bass' : 'Guitar' }] : []),
+                    ...(neckTuning ? [{ id: 'fret' as const, label: isBass ? 'Bass' : 'Guitar' }] : []),
                     { id: 'keys' as const, label: 'Keyboard' },
                     { id: 'chords' as const, label: 'Chords' },
                   ]).map((s) => (
@@ -895,15 +999,49 @@ export function InstrumentPicker() {
                           {d === 'down' ? '↓' : d === 'up' ? '↑' : 'block'}
                         </button>
                       ))}
-                      <input
-                        type="range" min={0} max={140} step={5}
-                        value={Math.round(strumSpread * 1000)}
-                        onChange={(e) => setStrumSpread(Number(e.target.value) / 1000)}
-                        className="h-1 w-20 cursor-pointer accent-signal-400"
-                        title={`Strum speed - ${Math.round(strumSpread * 1000)}ms across the chord`}
-                        aria-label="Strum speed"
-                      />
+                      {/* Speed, not milliseconds. The gap between strings now
+                          follows the tempo, the way a hand does, so a raw ms
+                          number would be a setting that fights the music. */}
+                      {(['slow', 'medium', 'fast'] as StrumSpeed[]).map((sp) => (
+                        <button
+                          key={sp}
+                          onClick={() => { setStrumSpeed(sp); strumEngine.update({ speed: sp }); }}
+                          title={`${sp} strum — ${Math.round(interStringSec(bpm, sp) * 1000)}ms between strings at ${Math.round(bpm)} BPM`}
+                          className={`rounded-md border px-2 py-1 text-[11px] font-medium ${strumSpeed === sp ? 'border-signal-400/50 bg-signal-400/15 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}
+                        >
+                          {sp === 'slow' ? 'Loose' : sp === 'fast' ? 'Tight' : 'Even'}
+                        </button>
+                      ))}
                     </div>
+
+                    {/* Auto-strum: hold a chord and the hand keeps playing, in
+                        time with the project. Only offered on instruments with
+                        strings — there is nothing to strum on a piano. */}
+                    {neckTuning && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => { const next = !autoStrum; setAutoStrum(next); if (!next) strumEngine.stop(); }}
+                          aria-pressed={autoStrum}
+                          title="Hold a chord and keep strumming a pattern at the project tempo"
+                          className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${autoStrum ? 'border-signal-400/60 bg-signal-400/20 text-signal-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}
+                        >
+                          Auto-strum
+                        </button>
+                        {autoStrum && (
+                          <>
+                            <select
+                              value={strumPatternId}
+                              onChange={(e) => { setStrumPatternId(e.target.value); strumEngine.setPattern(patternById(e.target.value)); }}
+                              className="rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-200"
+                              title={patternById(strumPatternId).blurb}
+                            >
+                              {STRUM_PATTERNS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                            </select>
+                            <span className="hidden text-[10px] text-zinc-500 sm:inline">{patternById(strumPatternId).blurb}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     <button
                       onClick={() => setChordSustain((v) => !v)}
@@ -994,8 +1132,8 @@ export function InstrumentPicker() {
                   baseRoot={chordRegister.baseRoot}
                   lowestPitch={chordRegister.lowestPitch}
                 />
-              ) : surface === 'fret' && TUNINGS[selectedId!] ? (
-                <Fretboard tuning={TUNINGS[selectedId!]} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
+              ) : surface === 'fret' && neckTuning ? (
+                <Fretboard tuning={neckTuning} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
               ) : (
                 <Keyboard startPitch={startPitch} lit={lit} onDown={(p) => noteOn(p, 0.9)} onUp={noteOff} />
               )}

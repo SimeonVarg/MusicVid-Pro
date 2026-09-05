@@ -161,6 +161,40 @@ class MidiPlaybackEngine {
     this.liveVoices.get(instrumentId)?.release?.(clampPitch(pitch));
   }
 
+  /**
+   * Sound a strum: several notes at precise sub-frame offsets from now.
+   *
+   * These CANNOT go through setTimeout. The gap between adjacent strings is
+   * about 11ms at 120 BPM, and setTimeout has a ~4ms floor, is clamped harder
+   * in a busy or backgrounded frame, and gives no ordering guarantee — so the
+   * strings would arrive 30-100% out and sometimes in the wrong order, which is
+   * the one thing a strum cannot survive. `voice.trigger` takes an absolute
+   * time on the audio clock and is sample-accurate.
+   *
+   * Returns the context time the stroke was anchored to, so a recorder can
+   * place the notes from the time they were SCHEDULED rather than the time the
+   * handler happened to run.
+   */
+  strum(
+    instrumentId: string,
+    notes: { pitch: number; offsetSec: number; velocity: number; durationSec: number }[],
+    atContextTime?: number
+  ): number | null {
+    const voice = this.liveVoices.get(instrumentId);
+    if (!voice || notes.length === 0) return null;
+    // One lookahead plus slack, so nothing is ever scheduled into the past.
+    const anchor = atContextTime ?? tone().now() + 0.012;
+    for (const n of notes) {
+      voice.trigger(clampPitch(n.pitch), anchor + n.offsetSec, Math.max(0.05, n.durationSec), n.velocity);
+    }
+    return anchor;
+  }
+
+  /** Current time on the audio clock — the clock strums are scheduled against. */
+  contextTime(): number {
+    try { return tone().now(); } catch { return 0; }
+  }
+
   /** Drop live voices (closing the studio) so nothing is left ringing. */
   releaseAllLive(): void {
     for (const v of this.liveVoices.values()) {
