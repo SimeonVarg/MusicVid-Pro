@@ -101,18 +101,21 @@ export function Toolbar() {
 
   return (
     <>
-      <div data-tutorial="toolbar" className="h-14 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-3">
-        <div className="flex h-full items-center gap-2">
+      {/* Phones keep only the row's ends: brand, mode, settings, Export. Transport
+          and time move to MobileTransport under the preview; BPM and the tool
+          icons live in Settings. Every section a phone drops is `hidden md:*`. */}
+      <div data-tutorial="toolbar" className="h-12 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-2 md:h-14 md:px-3">
+        <div className="flex h-full items-center gap-1.5 md:gap-2">
 
           {/* Brand */}
-          <div className="flex shrink-0 items-center gap-2 pr-1">
+          <div className="flex shrink-0 items-center gap-2 pr-0.5 md:pr-1">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-signal-400">
               <Music className="h-3.5 w-3.5 text-zinc-950" />
             </div>
             <span className="hidden text-sm font-bold tracking-tight lg:block">MusicVid Pro</span>
           </div>
 
-          <Separator orientation="vertical" className="h-7" />
+          <Separator orientation="vertical" className="hidden h-7 md:block" />
 
           {/* Mode switcher - the primary "what am I making?" control. Each mode
               hides the tooling the other doesn't need, so the surface stays small. */}
@@ -130,7 +133,7 @@ export function Toolbar() {
                   onClick={() => setMode(m.id)}
                   title={m.hint}
                   aria-pressed={active}
-                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium transition-colors md:py-1.5 ${
                     active
                       ? 'bg-signal-400 text-zinc-950'
                       : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
@@ -143,10 +146,10 @@ export function Toolbar() {
             })}
           </div>
 
-          <Separator orientation="vertical" className="h-7" />
+          <Separator orientation="vertical" className="hidden h-7 md:block" />
 
           {/* Playback controls */}
-          <div data-tutorial="toolbar-playback" className="flex shrink-0 items-center gap-0.5">
+          <div data-tutorial="toolbar-playback" className="hidden shrink-0 items-center gap-0.5 md:flex">
             <Button
               variant="ghost"
               size="icon"
@@ -186,22 +189,23 @@ export function Toolbar() {
 
           </div>
 
-          <Separator orientation="vertical" className="h-7" />
+          <Separator orientation="vertical" className="hidden h-7 md:block" />
 
-          {/* Time display - centered */}
+          {/* Time display - centered. On phones this is just the spacer that
+              pushes Settings + Export to the right edge. */}
           <div className="flex flex-1 items-center justify-center">
-            <TimeDisplay />
+            <div className="hidden md:block"><TimeDisplay /></div>
           </div>
 
           {/* BPM */}
-          <div data-tutorial="toolbar-bpm" className="shrink-0">
+          <div data-tutorial="toolbar-bpm" className="hidden shrink-0 md:block">
             <BPMControl value={musical.bpm} onChange={setBPM} />
           </div>
 
-          <Separator orientation="vertical" className="h-7" />
+          <Separator orientation="vertical" className="hidden h-7 md:block" />
 
           {/* Tools group */}
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="hidden shrink-0 items-center gap-0.5 md:flex">
             <Button
               data-tutorial="toolbar-split"
               variant="ghost"
@@ -290,14 +294,14 @@ export function Toolbar() {
             </Button>
           </div>
 
-          <Separator orientation="vertical" className="h-7" />
+          <Separator orientation="vertical" className="hidden h-7 md:block" />
 
           {/* Settings + actions */}
           <div className="relative flex shrink-0 items-center gap-0.5" ref={settingsRef}>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9 md:h-8 md:w-8"
               title="Settings, shortcuts & projects"
               onClick={() => setSettingsOpen((v) => !v)}
             >
@@ -305,7 +309,37 @@ export function Toolbar() {
             </Button>
 
             {settingsOpen && (
-              <div className="absolute right-0 top-11 z-50 w-52 rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+              <div className="absolute right-0 top-11 z-50 w-56 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl md:w-52">
+                {/* Phone-only: the tempo field and Save, which the narrow bar drops */}
+                <div className="md:hidden">
+                  <p className="section-label px-3 py-1.5">Project</p>
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-sm text-zinc-100">Tempo</span>
+                    <BPMControl value={musical.bpm} onChange={setBPM} />
+                  </div>
+                  <button
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                    disabled={isSaving}
+                    onClick={async () => {
+                      setSettingsOpen(false);
+                      setIsSaving(true);
+                      try { await saveProject(); }
+                      catch (e) { console.error('Save failed:', e); }
+                      finally { setIsSaving(false); }
+                    }}
+                  >
+                    <span>Save project</span>
+                    <Save className="h-4 w-4 text-zinc-400" />
+                  </button>
+                  <button
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                    onClick={() => { setMixerOpen(!mixerOpen); setSettingsOpen(false); }}
+                  >
+                    <span>Mixer</span>
+                    <Sliders className="h-4 w-4 text-zinc-400" />
+                  </button>
+                  <div className="my-1 h-px bg-zinc-800" />
+                </div>
                 <p className="section-label px-3 py-1.5">Settings</p>
                 <button
                   className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800"
@@ -414,7 +448,7 @@ export function Toolbar() {
             <Button
               data-tutorial="toolbar-save"
               variant="outline"
-              className="h-8 shrink-0 gap-1.5 px-3 text-sm"
+              className="hidden h-8 shrink-0 gap-1.5 px-3 text-sm md:inline-flex"
               disabled={isSaving}
               onClick={async () => {
                 setIsSaving(true);
@@ -436,11 +470,11 @@ export function Toolbar() {
             <Button
               data-tutorial="toolbar-export"
               variant="default"
-              className="h-8 shrink-0 gap-1.5 px-3 text-sm"
+              className="h-9 shrink-0 gap-1.5 px-3 text-sm md:h-8"
               onClick={() => setExportDialogOpen(true)}
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Export</span>
+              <span>Export</span>
             </Button>
           </div>
         </div>

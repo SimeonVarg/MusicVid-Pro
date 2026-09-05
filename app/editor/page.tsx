@@ -18,8 +18,12 @@ import { Progress } from '@/components/ui/Progress';
 import { ResizeDivider } from '@/components/editor/ResizeDivider';
 import { FloatingWindow } from '@/components/editor/FloatingWindow';
 import { SessionRestoreBanner } from '@/components/editor/SessionRestoreBanner';
+import { MobileSheet } from '@/components/editor/MobileSheet';
+import { MobileTransport } from '@/components/editor/MobileTransport';
+import { MobileDock, type DockSheet } from '@/components/editor/MobileDock';
 import { usePanelResize } from '@/lib/hooks/usePanelResize';
 import { useAutosave } from '@/lib/hooks/useAutosave';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useEditorStore } from '@/stores/editorStore';
 import { useKeyboardShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { MediaJobQueue } from '@/lib/media/mediaJobQueue';
@@ -124,7 +128,7 @@ export default function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Floating preview state
+  // Floating preview state (declared before the mobile effects that reset it)
   const [previewDetached, setPreviewDetached] = useState(false);
 
   const handleDetach = useCallback(() => setPreviewDetached(true), []);
@@ -140,8 +144,22 @@ export default function EditorPage() {
     };
     window.addEventListener('click', load, { once: true });
     window.addEventListener('keydown', load, { once: true });
-    return () => { window.removeEventListener('click', load); window.removeEventListener('keydown', load); };
+    window.addEventListener('touchstart', load, { once: true, passive: true });
+    return () => {
+      window.removeEventListener('click', load);
+      window.removeEventListener('keydown', load);
+      window.removeEventListener('touchstart', load);
+    };
   }, []);
+
+  // Phone layout: no side columns. The media library and inspector become
+  // bottom sheets driven from the dock; transport moves under the preview.
+  const isMobile = useIsMobile();
+  const [dockSheet, setDockSheet] = useState<DockSheet>(null);
+  const closeSheet = useCallback(() => setDockSheet(null), []);
+  useEffect(() => { if (!isMobile) setDockSheet(null); }, [isMobile]);
+  // A popped-out preview has nowhere to float on a phone: dock it back.
+  useEffect(() => { if (isMobile) setPreviewDetached(false); }, [isMobile]);
 
   const mode = useEditorStore((s) => s.mode);
   // Beats mode is a DAW: the video monitor is pure noise, so it disappears and the
@@ -168,7 +186,14 @@ export default function EditorPage() {
   return (
     <EditorErrorBoundary>
       <div
-        className="relative flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100"
+        className="relative flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100 supports-[height:100dvh]:h-[100dvh]"
+        // viewport-fit=cover paints under the notch in landscape; these are 0
+        // everywhere the insets do not apply.
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+        }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -204,15 +229,19 @@ export default function EditorPage() {
           {/* ── Main area ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* Preview pane - hidden entirely in Beats (DAW) mode */}
+            {/* Preview pane - hidden entirely in Beats (DAW) mode. On a phone it
+                is a fixed 16:9 strip the full width of the screen, so the
+                timeline below always keeps at least a third of the height. */}
             {showPreviewPane && (
               <>
                 {!previewDetached ? (
                   <div
                     className="relative flex shrink-0 items-center justify-center border-b border-zinc-800 bg-black"
-                    style={{ height: previewSplit.size, maxHeight: '55vh' }}
+                    style={isMobile
+                      ? { height: 'min(56.25vw, 38dvh)' }
+                      : { height: previewSplit.size, maxHeight: '55vh' }}
                   >
-                    <VideoPreview onDetach={handleDetach} />
+                    <VideoPreview onDetach={isMobile ? undefined : handleDetach} />
                   </div>
                 ) : (
                   /* Placeholder when detached */
@@ -231,14 +260,20 @@ export default function EditorPage() {
                   </div>
                 )}
 
-                <ResizeDivider direction="vertical" onMouseDown={previewSplit.onMouseDown} />
+                <div className="hidden md:block">
+                  <ResizeDivider direction="vertical" onMouseDown={previewSplit.onMouseDown} />
+                </div>
               </>
             )}
+
+            <MobileTransport />
 
             {/* Timeline pane - the arrangement. Fills the workspace in Beats mode. */}
             <div className="min-h-0 flex-1 overflow-hidden bg-zinc-900">
               <Timeline />
             </div>
+
+            <MobileDock active={dockSheet} onOpen={setDockSheet} />
           </div>
 
           <div className="hidden md:block">
@@ -254,8 +289,18 @@ export default function EditorPage() {
           </div>
         </div>
 
+        {/* Phone sheets - the side columns, reachable from the dock */}
+        <MobileSheet open={isMobile && dockSheet === 'add'} onClose={closeSheet} title={showMediaPanel ? 'Add media' : 'Add track'} height="62dvh">
+          <div className="h-full overflow-y-auto">
+            <TrackList />
+          </div>
+        </MobileSheet>
+        <MobileSheet open={isMobile && dockSheet === 'inspect'} onClose={closeSheet} title="Inspector" height="72dvh">
+          <InspectorPanel embedded />
+        </MobileSheet>
+
         {/* Floating VideoPreview window */}
-        {showPreviewPane && previewDetached && (
+        {showPreviewPane && !isMobile && previewDetached && (
           <FloatingWindow
             title="Video Preview"
             initialWidth={640}

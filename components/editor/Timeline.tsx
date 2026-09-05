@@ -19,7 +19,27 @@ import {
   trackRowTop,
 } from '@/lib/utils/timelineLayout';
 import { ContextMenu, useContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import {
+  TAP_SLOP_PX,
+  panScrollX,
+  panScrollY,
+  pinchZoom,
+  touchDistance,
+  touchMidpoint,
+  type TouchPoint,
+} from '@/lib/utils/touchGestures';
 import { Copy, ClipboardPaste, CopyPlus, Scissors, Volume2, VolumeX, Lock, Unlock, Trash2, Music, Plus, Type, MapPin, AudioLines, Repeat } from 'lucide-react';
+
+/** Gutter width on phones - name + M/S/lock, no fader, leaves the lanes room. */
+const MOBILE_HEADER_WIDTH = 108;
+
+type TouchGesture =
+  | { mode: 'scrub' }
+  | { mode: 'pan'; start: TouchPoint; startScrollX: number; startScrollY: number }
+  | { mode: 'pinch'; startSpan: number; startZoom: number; anchorX: number }
+  /** A gesture whose first finger has lifted: inert, but still gates `tap`. */
+  | { mode: 'done' };
 
 export function Timeline() {
   const stageRef = useRef<any>(null);
@@ -27,6 +47,12 @@ export function Timeline() {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [verticalScroll, setVerticalScroll] = useState(0);
+  const isMobile = useIsMobile();
+
+  // Touch: one finger on the ruler scrubs, one finger on the lanes pans, two
+  // fingers pinch-zoom around their midpoint. Konva fires `tap` even after a
+  // pan (start and end shape match), so `moved` gates the tap handlers.
+  const touchRef = useRef<{ gesture: TouchGesture; origin: TouchPoint; moved: boolean } | null>(null);
 
   const {
     videoTracks,
@@ -220,8 +246,9 @@ export function Timeline() {
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
     const pointerPosition = stage?.getPointerPosition();
+    // TouchEvents carry no `button`; treat them as the primary button.
     if (
-      e.evt.button !== 0 ||
+      (e.evt.button ?? 0) !== 0 ||
       !pointerPosition ||
       isPlayheadTarget(e.target) ||
       isTrackInteractionTarget(e.target)
@@ -302,6 +329,110 @@ export function Timeline() {
   const stopScrubbing = () => {
     setIsScrubbing(false);
     if (loopDragRef.current) loopDragRef.current = null;
+  };
+
+  // ── Touch ──────────────────────────────────────────────────────────────────
+  const touchPoints = (e: any): TouchPoint[] =>
+    Array.from((e.evt.touches ?? []) as TouchList).map((t) => ({ x: t.clientX, y: t.clientY }));
+
+  const handleTouchStart = (e: any) => {
+    const stage = e.target.getStage();
+    const pts = touchPoints(e);
+    if (!stage || pts.length === 0) return;
+
+    if (pts.length >= 2) {
+      const rect = stage.container().getBoundingClientRect();
+      const mid = touchMidpoint(pts[0], pts[1]);
+      touchRef.current = {
+        gesture: { mode: 'pinch', startSpan: touchDistance(pts[0], pts[1]), startZoom: timeline.zoom, anchorX: mid.x - rect.left },
+        origin: mid,
+        moved: true,
+      };
+      setIsScrubbing(false);
+      loopDragRef.current = null;
+      return;
+    }
+
+    const pointerPosition = stage.getPointerPosition();
+    if (!pointerPosition || isPlayheadTarget(e.target)) return;
+    const onClip = Boolean(e.target.findAncestor?.('timeline-clip', true) || e.target.findAncestor?.('trim-handle', true));
+    if (onClip) return; // Konva's own drag moves the clip
+
+    if (inCycleLane(pointerPosition.y) && timeline.loop) {
+      handleMouseDown(e); // same create/move/resize state machine as the mouse
+      touchRef.current = { gesture: { mode: 'scrub' }, origin: pts[0], moved: false };
+      return;
+    }
+
+    if (isRulerArea(stage)) {
+      touchRef.current = { gesture: { mode: 'scrub' }, origin: pts[0], moved: false };
+      setIsScrubbing(true);
+      seekFromPointer(stage);
+      return;
+    }
+
+    touchRef.current = {
+      gesture: { mode: 'pan', start: pts[0], startScrollX: timeline.scrollX, startScrollY: clampedVerticalScroll },
+      origin: pts[0],
+      moved: false,
+    };
+  };
+
+  const handleTouchMove = (e: any) => {
+    const current = touchRef.current;
+    const pts = touchPoints(e);
+    if (loopDragRef.current) { handleMouseMove(e); return; }
+    if (!current || pts.length === 0) return;
+
+    if (!current.moved && touchDistance(current.origin, pts[0]) > TAP_SLOP_PX) current.moved = true;
+
+    const g = current.gesture;
+    if (g.mode === 'done') return;
+    if (g.mode === 'pinch') {
+      if (pts.length < 2) return;
+      setZoomAnchored(pinchZoom(g.startZoom, g.startSpan, touchDistance(pts[0], pts[1])), g.anchorX);
+      return;
+    }
+    if (g.mode === 'scrub') {
+      seekFromPointer(e.target.getStage());
+      return;
+    }
+    // pan
+    setScrollX(panScrollX(g.startScrollX, pts[0].x - g.start.x, maxScroll));
+    if (maxVerticalScroll > 0) setVerticalScroll(panScrollY(g.startScrollY, pts[0].y - g.start.y, maxVerticalScroll));
+  };
+
+  const handleTouchEnd = (e: any) => {
+    // Lifting one finger of a pinch must not turn into a pan from a stale
+    // origin - but Konva fires `tap` for that same lift right after this
+    // handler (start and end shape match), so the gate has to stay alive:
+    // park the gesture as 'done' instead of clearing it.
+    if (touchPoints(e).length > 0) {
+      if (touchRef.current) touchRef.current = { ...touchRef.current, gesture: { mode: 'done' }, moved: true };
+      return;
+    }
+    stopScrubbing();
+    // Leave `moved` for the tap handler that fires right after touchend.
+    setTimeout(() => { touchRef.current = null; }, 0);
+  };
+
+  // The OS can cancel a touch (notification shade, palm rejection, a call).
+  // Konva turns touchcancel into `pointerup`, never `touchend`, so reset here.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onCancel = () => {
+      touchRef.current = null;
+      loopDragRef.current = null;
+      setIsScrubbing(false);
+    };
+    el.addEventListener('touchcancel', onCancel);
+    return () => el.removeEventListener('touchcancel', onCancel);
+  }, []);
+
+  const handleStageTap = (e: any) => {
+    if (touchRef.current?.moved) return;
+    handleStageClick(e);
   };
 
   const handleWheel = (e: any) => {
@@ -446,11 +577,12 @@ export function Timeline() {
         trackHeight={TRACK_HEIGHT}
         viewportHeight={trackViewportHeight}
         verticalScroll={clampedVerticalScroll}
-        width={TRACK_HEADER_WIDTH}
+        width={isMobile ? MOBILE_HEADER_WIDTH : TRACK_HEADER_WIDTH}
         onWheel={handleHeaderWheel}
       />
 
-      <div ref={containerRef} className="relative h-full min-w-0 flex-1 overflow-hidden">
+      {/* touch-action none: a finger on the canvas scrubs/pans the timeline, never the page */}
+      <div ref={containerRef} className="relative h-full min-w-0 flex-1 overflow-hidden" style={{ touchAction: 'none' }}>
       {hasMeasuredViewport && (
       <Stage
         ref={stageRef}
@@ -458,10 +590,14 @@ export function Timeline() {
         height={dimensions.height}
         pixelRatio={stagePixelRatio}
         onClick={handleStageClick}
+        onTap={handleStageTap}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={stopScrubbing}
         onMouseLeave={stopScrubbing}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
         onContextMenu={handleStageContextMenu}
       >
@@ -531,6 +667,7 @@ export function Timeline() {
                     totalVideoTracks={videoTracks.length}
                     verticalScroll={clampedVerticalScroll}
                     audioTrackCount={audioTracks.length}
+                    touchMode={isMobile}
                   />
                 );
               })}
@@ -556,6 +693,7 @@ export function Timeline() {
             scrollX={clampedScroll}
             duration={timeline.duration}
             onSeek={setCurrentTime}
+            touchGrabZone={isMobile}
           />
         </Layer>
       </Stage>
@@ -613,28 +751,30 @@ export function Timeline() {
       {/* Empty timeline / ruler background context menu */}
       {bgMenu.node}
 
-      {/* Zoom Controls */}
-      <div className="absolute bottom-10 right-4 flex items-center gap-3 bg-zinc-800 rounded-lg px-3 py-2">
+      {/* Zoom Controls - phones get the H pair only (pinch does the rest) */}
+      <div className="absolute bottom-10 right-2 flex items-center gap-2 rounded-lg bg-zinc-800/95 px-2 py-1 md:right-4 md:gap-3 md:px-3 md:py-2">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-zinc-500 mr-1">H</span>
+          <span className="mr-1 hidden text-xs text-zinc-500 md:inline">H</span>
           <button
             onClick={() => setZoomAnchored(timeline.zoom / 1.2)}
-            className="text-zinc-400 hover:text-zinc-100 transition-colors"
+            aria-label="Zoom out"
+            className="flex h-7 w-7 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-100 md:h-auto md:w-auto"
           >
             −
           </button>
-          <span className="text-sm text-zinc-400 font-mono w-12 text-center">
+          <span className="w-12 text-center font-mono text-sm text-zinc-400">
             {Math.round(timeline.zoom * 100)}%
           </span>
           <button
             onClick={() => setZoomAnchored(timeline.zoom * 1.2)}
-            className="text-zinc-400 hover:text-zinc-100 transition-colors"
+            aria-label="Zoom in"
+            className="flex h-7 w-7 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-100 md:h-auto md:w-auto"
           >
             +
           </button>
         </div>
-        <div className="w-px h-5 bg-zinc-700" />
-        <div className="flex items-center gap-1">
+        <div className="hidden h-5 w-px bg-zinc-700 md:block" />
+        <div className="hidden items-center gap-1 md:flex">
           <span className="text-xs text-zinc-500 mr-1">V</span>
           <button
             onClick={() => setTrackHeightScale((s) => Math.max(0.5, +(s / 1.2).toFixed(2)))}

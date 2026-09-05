@@ -8,6 +8,7 @@ import { VideoProcessor, type ThumbnailFrame } from '@/lib/video/videoProcessor'
 import { WaveformVisualization } from '@/components/editor/WaveformVisualization';
 import { snapToBeatGrid } from '@/lib/utils/musicalTime';
 import { beatsToSeconds, contentLengthBeats } from '@/lib/midi/noteUtils';
+import { LONG_PRESS_MS, TAP_SLOP_PX, touchDistance } from '@/lib/utils/touchGestures';
 
 interface TimelineTrackProps {
   track: (AudioTrack | VideoTrack | TextTrack | MidiTrack) & { type: 'audio' | 'video' | 'text' | 'midi' };
@@ -19,6 +20,12 @@ interface TimelineTrackProps {
   totalVideoTracks?: number;
   verticalScroll?: number;
   audioTrackCount?: number;
+  /**
+   * Phones: a held thumb wobbles a few pixels, and Konva starts a drag at 3px,
+   * which would cancel every long-press. Touch mode raises the drag threshold
+   * to the tap slop so a hold stays a hold and a real swipe still moves the clip.
+   */
+  touchMode?: boolean;
 }
 
 function clampThumbnailSampleCount(rawCount: number) {
@@ -35,6 +42,7 @@ export function TimelineTrackInner({
   totalVideoTracks = 1,
   verticalScroll = 0,
   audioTrackCount = 0,
+  touchMode = false,
 }: TimelineTrackProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dragPreviewIndex, setDragPreviewIndex] = useState<number | null>(null);
@@ -50,6 +58,19 @@ export function TimelineTrackInner({
   const [hoveredHandle, setHoveredHandle] = useState<'start' | 'end' | null>(null);
   const trimPreviewRef = useRef<typeof trimPreview>(null);
   const thumbnailRequestIdRef = useRef(0);
+  // Touch has no right-click: holding a clip still for LONG_PRESS_MS opens the
+  // same menu. Any movement (Konva starts its drag at 3px) cancels the timer.
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+  const clipTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+  };
+  useEffect(() => cancelLongPress, []);
+  // Konva fires `tap` on the row whenever a touch starts and ends on it, even
+  // after a full pan across the lane - so the row remembers whether the
+  // finger moved and only selects on a real tap.
+  const rowTouchRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const {
     openTrackContextMenu,
     setSelectedTrackIds,
@@ -123,7 +144,8 @@ export function TimelineTrackInner({
       return;
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
+    // Pointer events so a finger can trim as well as a mouse.
+    const handleMouseMove = (event: PointerEvent) => {
       const current = trimPreviewRef.current;
 
       if (!current) {
@@ -174,14 +196,27 @@ export function TimelineTrackInner({
       setTrimPreview(null);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handleMouseMove);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handleMouseMove);
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
     };
   }, [minDuration, pixelsPerSecond, resizeTrackEdge, track.id, trimPreview?.edge]);
+
+  const beginTrim = (edge: 'start' | 'end', clientX: number) => {
+    setTrimPreview({
+      edge,
+      initialTrimStart: track.trimStart,
+      initialTrimEnd: track.trimEnd,
+      startClientX: clientX,
+      previewTrimStart: track.trimStart,
+      previewTrimEnd: track.trimEnd,
+    });
+  };
 
   useEffect(() => {
     if (!sourceFile || committedTrimmedWidth < 120) {
@@ -275,6 +310,21 @@ export function TimelineTrackInner({
         event.cancelBubble = true;
         setSelectedTrackIds([track.id]);
       }}
+      onTouchStart={(event) => {
+        // No cancelBubble: the Stage still needs this touch to start a pan.
+        const t = (event.evt as TouchEvent).touches?.[0];
+        rowTouchRef.current = t ? { x: t.clientX, y: t.clientY, moved: false } : null;
+      }}
+      onTouchMove={(event) => {
+        const t = (event.evt as TouchEvent).touches?.[0];
+        const r = rowTouchRef.current;
+        if (t && r && !r.moved && touchDistance(r, { x: t.clientX, y: t.clientY }) > TAP_SLOP_PX) r.moved = true;
+      }}
+      onTap={(event) => {
+        event.cancelBubble = true;
+        if (rowTouchRef.current?.moved) return;
+        setSelectedTrackIds([track.id]);
+      }}
     >
       {/* Track Background */}
       <Rect
@@ -315,10 +365,42 @@ export function TimelineTrackInner({
         x={clipXPosition}
         y={clipY}
         draggable={!isLocked}
+        dragDistance={touchMode ? TAP_SLOP_PX : 3}
         dragBoundFunc={(pos) => ({ x: Math.max(scrollX, pos.x), y: pos.y })}
-        onDragStart={() => {
+        onDragStart={(event) => {
+          cancelLongPress();
+          // Konva arms its drag on the same touchstart; a second finger (pinch)
+          // or a long-press that already opened the menu must not move the clip.
+          const touches = (event.evt as unknown as TouchEvent).touches;
+          if (longPressFiredRef.current || (touches && touches.length > 1)) {
+            event.target.stopDrag();
+            return;
+          }
           setSelectedTrackIds([track.id]);
         }}
+        onTouchStart={(event) => {
+          event.cancelBubble = true;
+          setSelectedTrackIds([track.id]);
+          cancelLongPress();
+          longPressFiredRef.current = false;
+          const touch = (event.evt as TouchEvent).touches?.[0];
+          if (!touch || (event.evt as TouchEvent).touches.length > 1) { clipTouchStartRef.current = null; return; }
+          const { clientX, clientY } = touch;
+          clipTouchStartRef.current = { x: clientX, y: clientY };
+          longPressRef.current = setTimeout(() => {
+            longPressRef.current = null;
+            longPressFiredRef.current = true;
+            openTrackContextMenu(track.id, clientX, clientY);
+          }, LONG_PRESS_MS);
+        }}
+        onTouchMove={(event) => {
+          // A thumb wobbles; only real movement cancels the hold.
+          const t = (event.evt as TouchEvent).touches?.[0];
+          const start = clipTouchStartRef.current;
+          if (!t || !start || touchDistance(start, { x: t.clientX, y: t.clientY }) > TAP_SLOP_PX) cancelLongPress();
+        }}
+        onTouchEnd={() => { cancelLongPress(); longPressFiredRef.current = false; }}
+        onPointerUp={cancelLongPress}
         onDragMove={(event) => {
           if (!isVideo) return;
           // Use absolute canvas position to compute which video row we're hovering over.
@@ -366,7 +448,16 @@ export function TimelineTrackInner({
           event.cancelBubble = true;
           setSelectedTrackIds([track.id]);
         }}
+        onTap={(event) => {
+          event.cancelBubble = true;
+          setSelectedTrackIds([track.id]);
+        }}
         onDblClick={(event) => {
+          if (!isMidi) return;
+          event.cancelBubble = true;
+          openPianoRoll(track.id);
+        }}
+        onDblTap={(event) => {
           if (!isMidi) return;
           event.cancelBubble = true;
           openPianoRoll(track.id);
@@ -617,14 +708,12 @@ export function TimelineTrackInner({
               onMouseDown={(event) => {
                 event.cancelBubble = true;
                 event.evt.preventDefault();
-                setTrimPreview({
-                  edge: 'start',
-                  initialTrimStart: track.trimStart,
-                  initialTrimEnd: track.trimEnd,
-                  startClientX: event.evt.clientX,
-                  previewTrimStart: track.trimStart,
-                  previewTrimEnd: track.trimEnd,
-                });
+                beginTrim('start', event.evt.clientX);
+              }}
+              onTouchStart={(event) => {
+                event.cancelBubble = true;
+                const touch = (event.evt as TouchEvent).touches?.[0];
+                if (touch) beginTrim('start', touch.clientX);
               }}
               onMouseEnter={() => setHoveredHandle('start')}
               onMouseLeave={() => setHoveredHandle((current) => (current === 'start' ? null : current))}
@@ -646,14 +735,12 @@ export function TimelineTrackInner({
               onMouseDown={(event) => {
                 event.cancelBubble = true;
                 event.evt.preventDefault();
-                setTrimPreview({
-                  edge: 'end',
-                  initialTrimStart: track.trimStart,
-                  initialTrimEnd: track.trimEnd,
-                  startClientX: event.evt.clientX,
-                  previewTrimStart: track.trimStart,
-                  previewTrimEnd: track.trimEnd,
-                });
+                beginTrim('end', event.evt.clientX);
+              }}
+              onTouchStart={(event) => {
+                event.cancelBubble = true;
+                const touch = (event.evt as TouchEvent).touches?.[0];
+                if (touch) beginTrim('end', touch.clientX);
               }}
               onMouseEnter={() => setHoveredHandle('end')}
               onMouseLeave={() => setHoveredHandle((current) => (current === 'end' ? null : current))}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { useEditorStore, type TutorialMode } from '@/stores/editorStore';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { Button } from '@/components/ui/Button';
 import {
   Dialog,
@@ -27,6 +28,18 @@ export function TutorialLauncher() {
     resetTutorialProgress,
     setTutorialMode,
   } = useEditorStore();
+
+  // The tour spotlights desktop-only panels (media column, inspector, BPM in
+  // the toolbar). On a phone those are hidden, so every step would point at
+  // nothing. The welcome dialog portals to <body> and would still appear even
+  // though the launcher itself is hidden there - dismiss it instead.
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (isMobile && tutorialShowWelcome) {
+      exitTutorial();
+      dismissWelcome();
+    }
+  }, [isMobile, tutorialShowWelcome, exitTutorial, dismissWelcome]);
 
   function handleHelpClick() {
     // Always show the mode selection dialog when the help button is clicked
@@ -59,7 +72,7 @@ export function TutorialLauncher() {
   return (
     <>
       {/* Welcome dialog for new users */}
-      <Dialog open={tutorialShowWelcome} onOpenChange={() => {}}>
+      <Dialog open={tutorialShowWelcome && !isMobile} onOpenChange={() => {}}>
         <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Welcome to MusicVid Pro</DialogTitle>

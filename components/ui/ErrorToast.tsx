@@ -23,7 +23,7 @@ export function ErrorToast() {
     <div
       role="alert"
       aria-live="assertive"
-      className="fixed bottom-6 left-1/2 z-[100] flex -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in items-center gap-3 rounded-lg border border-red-500/40 bg-zinc-900 px-4 py-3 shadow-2xl shadow-black/50 text-sm text-red-300 max-w-md duration-200"
+      className="fixed bottom-20 left-1/2 z-[100] flex w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in items-center gap-3 rounded-lg border border-red-500/40 bg-zinc-900 px-4 py-3 text-sm text-red-300 shadow-2xl shadow-black/50 duration-200 md:bottom-6 md:w-auto"
     >
       <span className="shrink-0 text-base">⚠️</span>
       <span className="flex-1">{lastError}</span>

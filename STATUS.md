@@ -1,4 +1,92 @@
-# MusicVid Pro — Status (July 25, 2026: fretboard + smart chords)
+# MusicVid Pro — Status (Sept 4, 2026: phone layout + touch + export on phones)
+
+## Round 14 (Sept 4): the editor works on a phone; export lands in Photos
+
+Owner ask: "optimize this app for mobile and immediately push to main... make
+sure export works on phone." Pushed to `master` (live site) the same day.
+
+- **Phone layout** (`app/editor/page.tsx`, `<768px`). No side columns: the
+  media library and the inspector are bottom sheets (`MobileSheet.tsx`) opened
+  from a thumb dock (`MobileDock.tsx`: Add / Instrument / Inspect / Split-or-Notes).
+  Transport, time readout, metronome and cycle move under the preview
+  (`MobileTransport.tsx`). The preview is a fixed 16:9 strip
+  (`min(56.25vw, 38dvh)`) so the timeline always keeps a third of the screen.
+  Toolbar keeps brand / mode / settings / Export; tempo, Save and Mixer live in
+  the settings menu on phones. Root is `100dvh` so the URL bar never hides the
+  dock; `viewport-fit=cover` + `env(safe-area-inset-bottom)` pad the dock above
+  the home indicator. `touch-action: manipulation` on body kills double-tap zoom.
+- **Touch on the timeline** (`Timeline.tsx`, `TimelineTrack.tsx`, `Playhead.tsx`).
+  One finger on the ruler scrubs, one finger on the lanes pans (both axes), two
+  fingers pinch-zoom around their midpoint, tap seeks/selects, double-tap opens
+  the piano roll, holding a clip 450ms opens its context menu. Clips still move
+  with Konva's own drag; trim handles start from touch and follow window
+  pointer events. Gesture math is pure (`lib/utils/touchGestures.ts`, 9 tests).
+  Konva fires `tap` even after a pan, so a `moved` flag gates the tap handlers.
+  Gutter narrows to 108px on phones (no fader). Preview layer/text drag moved
+  from mouse to pointer events so a finger can move a title.
+- **Export on phones** (`ExportModal.tsx`, `lib/export/deliver.ts`, 7 tests).
+  Desktop unchanged: encode → auto-download → close. Phone: encode → "Your video
+  is ready" panel with **Save to Photos / Share** (Web Share API with the File —
+  the only route into iOS Photos) and **Save to device** (download anchor), both
+  inside a real tap because iOS ignores programmatic downloads outside one. A
+  Screen Wake Lock is held during the encode so a dimming screen doesn't suspend
+  the tab. Quality defaults to Medium on phones. Preflight warns that phones
+  encode slowly, and warns about memory above 300 MB of input (the WASM FS holds
+  every input twice). Modal fits 375×812; quality grid wraps 2×2.
+- Tutorial welcome is auto-dismissed on phones (it spotlights desktop-only panels
+  and its Dialog portals to body even though the launcher is hidden).
+
+**Adversarial review (50 agents, 6 lenses, 2 refuters per finding) caught 19 real
+defects before the push; all fixed and re-verified:**
+- Konva fires `tap` for the *first* finger lifted from a pinch, and the handler
+  had already cleared the gesture — so every real pinch on the ruler seeked to
+  the remaining finger. Gesture now parks as `done` (still gating tap) until the
+  last finger lifts. Re-tested with the exact sequence: playhead stayed at 0.6s.
+- Row `onTap` was ungated, so any one-finger pan across a lane selected that
+  lane. Rows now track their own touch slop. Re-tested: pan keeps selection,
+  clean tap selects.
+- The 44px playhead grab zone was live on desktop too and swallowed ruler clicks
+  and cycle-lane drags within 22px of the playhead. Now touch-only and 28px tall
+  so it never covers the cycle lane.
+- Long-press vs Konva drag: Konva starts a drag at 3px, which cancelled every
+  wobbly hold. Touch mode raises `dragDistance` to 8px; a second finger or a
+  fired long-press cancels the drag. Re-tested: 5px wobble → menu, clip put.
+- `touchcancel` (notification shade, call) left scrub/long-press state dangling.
+- Export: dismissing the dialog mid-encode orphaned the finished file (now
+  blocked while exporting, and the Done panel reopens itself); a backdrop tap on
+  the Done panel discarded the encode (now only Done/X close it); double-tapping
+  Share painted a raw InvalidStateError; Chromium's 50 MB share limit surfaced
+  as "Permission denied"; the mobile quality default re-applied on every
+  rotation; landscape phones/iPads took the desktop auto-download path (delivery
+  now also checks for a coarse pointer).
+- Standalone iOS: `black-translucent` put the toolbar under the clock → opaque
+  status bar plus safe-area padding on top/left/right.
+- Phone gutter M/S/lock were 18px (a miss selected the row) → 28px in compact mode.
+- MobileSheet ate the Escape a Radix dialog had already consumed; now
+  `defaultPrevented`-aware and moves focus to its Close button.
+- A popped-out preview had nowhere to float on a phone → docked on resize.
+
+**Verified in Chrome mobile emulation (375×812)**: layout fits (dock bottom = 812),
+Add sheet → demo loads in 1.5s, Inspect sheet shows the selected track, ruler
+touch 1.0s → move 2.0s, lane pan −300 → −360 (expected −360), pinch 4× → 8×,
+tap-seek 1.5s, export modal fits and shows the phone warning, **real WASM export
+of the 16s demo at 1080p/Medium finished in ~100s and the Done panel's Save fired
+an anchor download `export-youtube-*.mp4`**. Landing page: no horizontal
+overflow at 375. Desktop at 1440×900: columns, Save, BPM, transport, 208px gutter
+all back; dock and transport hidden. Suite 314/314, tsc clean (one pre-existing
+error in `colorAdjustments.test.ts`), production build clean.
+
+**Not verifiable here, watch for on the real phone:** `navigator.share` with files
+(only real iOS/Android expose it — desktop Chrome hides the Share button and
+shows Save only), Wake Lock, and encode speed on the phone's CPU. Phone-recorded
+HEVC clips decode slowly in single-thread WASM; keep test clips short.
+
+### Hidden-pane verification gotchas (new)
+When the Browser pane is hidden nothing in "update the rendering" runs: rAF,
+`matchMedia` change events, `resize`, CSS animations. So playback time stays 0,
+`useIsMobile` keeps its old value after `resize_window` until a reload, and a
+closed Radix Dialog stays in the DOM with `data-state="closed"` forever. None of
+those are bugs. Verify by state; reload after resizing.
 
 ## Round 13 (July 25): fretboard surfaces + GarageBand-style chord pads
 

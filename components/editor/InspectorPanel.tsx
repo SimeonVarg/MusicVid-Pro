@@ -56,7 +56,13 @@ function formatSecondsLabel(totalSeconds: number) {
   return `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
 }
 
-export function InspectorPanel() {
+/**
+ * `embedded` - rendered inside the phone bottom sheet, where the desktop
+ * collapse toggle makes no sense (the sheet is closed by swiping it away) and a
+ * collapsed state persisted from a laptop session must not leave the sheet
+ * showing only a 48px stub.
+ */
+export function InspectorPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const {
     selectedTrackIds,
     audioTracks,
@@ -317,7 +323,7 @@ export function InspectorPanel() {
   const beforeDuration = adjustmentTrack?.duration ?? selectedVideoTrack?.duration ?? 0;
   const afterDuration = bpmSpeedFactor > 0 ? beforeDuration / bpmSpeedFactor : beforeDuration;
 
-  if (inspectorCollapsed) {
+  if (inspectorCollapsed && !embedded) {
     return (
       <div className="flex h-full items-center justify-center p-2">
         <Button
@@ -357,11 +363,13 @@ export function InspectorPanel() {
           <Settings2 className="h-4 w-4" />
           Adjust
         </button>
-        <div className="ml-auto">
-          <Button variant="ghost" size="icon" onClick={toggleInspectorCollapsed} title="Collapse Inspector">
-            <Sliders className="h-4 w-4" />
-          </Button>
-        </div>
+        {!embedded && (
+          <div className="ml-auto">
+            <Button variant="ghost" size="icon" onClick={toggleInspectorCollapsed} title="Collapse Inspector">
+              <Sliders className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">

@@ -95,6 +95,20 @@ audio {
   transition: none !important;
 }
 
+/* Phones: a tap on a button must not become a double-tap zoom, and a flick at
+   the edge of the timeline must not rubber-band the whole page. iOS ignores
+   maximum-scale for accessibility, so touch-action is the only thing that
+   actually stops the zoom. */
+html,
+body {
+  overscroll-behavior: none;
+}
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Focus ring */
 :focus-visible {
   outline: 2px solid hsl(var(--ring));

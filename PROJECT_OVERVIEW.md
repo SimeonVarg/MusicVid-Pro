@@ -56,10 +56,13 @@ persistence, **Konva** for the timeline canvas.
 
 ## State
 Feature-complete and browser-verified end-to-end (import → edit → play → export →
-download), 233/233 tests, clean production build. All work is on branch
-`feature/updates-apr14` — **live site (music-vid-pro.vercel.app) updates only when
-merged to main.** Top remaining item: swap the bundled gradient demo clip for real
-footage of Simeon playing.
+download), 314 tests, clean production build. As of Sept 4 2026 `master` carries
+the DAW work (`feature/midi-daw` fast-forwarded) plus the **phone layout**: under
+768px the side columns become bottom sheets, the timeline takes touch (scrub,
+pan, pinch, long-press), and export ends on a Save / Share panel so the file can
+land in iOS Photos (see `STATUS.md` Round 14). **The live site
+(music-vid-pro.vercel.app) deploys from `master`.** Top remaining item: swap the
+bundled gradient demo clip for real footage of Simeon playing.
 
 ## Where to look
 - `STATUS.md` — full change log + known-remaining, ranked by demo impact.

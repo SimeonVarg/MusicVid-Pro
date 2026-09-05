@@ -142,7 +142,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       return;
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
+    // Pointer events cover mouse AND touch, so a finger can move a layer too.
+    const handleMouseMove = (event: PointerEvent) => {
       const container = containerRef.current;
       if (!container) {
         return;
@@ -174,12 +175,14 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       setDragState(null);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handleMouseMove);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handleMouseMove);
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
     };
   }, [dragState, updateVideoPreviewLayout]);
 
@@ -188,7 +191,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       return;
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
+    const handleMouseMove = (event: PointerEvent) => {
       const container = containerRef.current;
       if (!container) {
         return;
@@ -208,12 +211,14 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       setTextDragState(null);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handleMouseMove);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handleMouseMove);
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
     };
   }, [textDragState]);
 
@@ -320,7 +325,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
       data-tutorial="video-preview"
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-black"
-      onMouseDown={(event) => {
+      style={{ touchAction: 'none' }}
+      onPointerDown={(event) => {
         if (event.target === event.currentTarget) {
           setSelectedTrackIds([]);
         }
@@ -412,7 +418,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
                 zIndex: activeVideoLayers.length - index,
                 opacity: fadeOpacity,
               }}
-              onMouseDown={(event) => {
+              onPointerDown={(event) => {
                 event.stopPropagation();
                 setSelectedTrackIds([track.id]);
                 setDragState({
@@ -453,8 +459,8 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
               {isSelected && (
                 <button
                   type="button"
-                  className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize border border-zinc-900 bg-signal-400"
-                  onMouseDown={(event) => {
+                  className="absolute bottom-0 right-0 h-6 w-6 cursor-se-resize border border-zinc-900 bg-signal-400 md:h-4 md:w-4"
+                  onPointerDown={(event) => {
                     event.stopPropagation();
                     setDragState({
                       trackId: track.id,
@@ -512,7 +518,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
               lineHeight: 1.15,
               ...toTitleCss(track.titleStyle),
             }}
-            onMouseDown={(event) => {
+            onPointerDown={(event) => {
               if (track.isLocked) {
                 return;
               }
@@ -545,7 +551,7 @@ export function VideoPreview({ onDetach, detached }: { onDetach?: () => void; de
 
       {/* Playback Info Overlay */}
       {videoTracks.length > 0 && (
-        <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-sm">
+        <div className="absolute left-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs backdrop-blur-sm md:left-4 md:top-4 md:px-3 md:py-2 md:text-sm">
           <div className="text-zinc-300">
             {videoTracks.length} video track{videoTracks.length !== 1 ? 's' : ''}
           </div>

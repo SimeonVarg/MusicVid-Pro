@@ -44,8 +44,8 @@ function ChannelStrip({ channel, anySoloed }: { channel: MixerChannel; anySoloed
   const silenced = channel.isMuted || (anySoloed && !channel.isSoloed);
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 ${silenced ? 'opacity-50' : ''}`}>
-      <div className="flex w-36 shrink-0 items-center gap-2">
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 ${silenced ? 'opacity-50' : ''}`}>
+      <div className="flex w-24 shrink-0 items-center gap-2 sm:w-36">
         <Icon className={`h-3.5 w-3.5 shrink-0 ${meta.color}`} />
         <span className="truncate text-sm text-zinc-100" title={channel.name}>{channel.name}</span>
       </div>
@@ -62,7 +62,7 @@ function ChannelStrip({ channel, anySoloed }: { channel: MixerChannel; anySoloed
         <span className="w-8 shrink-0 text-right font-mono text-[11px] text-zinc-400">{Math.round(channel.volume * 100)}</span>
       </div>
 
-      <div className="flex w-32 shrink-0 items-center gap-2">
+      <div className="flex w-24 shrink-0 items-center gap-2 sm:w-32">
         <input
           type="range" min={-100} max={100} step={1}
           value={Math.round(channel.pan * 100)}

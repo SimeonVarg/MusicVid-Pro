@@ -45,12 +45,15 @@ function HeaderRow({
   trackHeight,
   selected,
   audioTools,
+  compact,
 }: {
   track: HeaderTrack;
   index: number;
   trackHeight: number;
   selected: boolean;
   audioTools: boolean;
+  /** Narrow gutter (phones): no room for the fader beside M/S/lock. */
+  compact: boolean;
 }) {
   const setSelectedTrackIds = useEditorStore((s) => s.setSelectedTrackIds);
   const openPianoRoll = useEditorStore((s) => s.openPianoRoll);
@@ -65,7 +68,11 @@ function HeaderRow({
   const isMidi = track.type === 'midi';
   // Degrade gracefully as the vertical zoom shrinks rows.
   const showControls = trackHeight >= 56;
-  const showFader = audioTools && track.type !== 'text' && trackHeight >= 70;
+  const showFader = audioTools && track.type !== 'text' && trackHeight >= 70 && !compact;
+  // A missed 18px tap lands on the row and merely selects it, so the phone
+  // gutter spends its width on 28px buttons instead of the fader.
+  const btnSize = compact ? 'h-7 w-7 text-[11px]' : 'h-[18px] w-[18px] text-[9px]';
+  const iconSize = compact ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5';
   const subtitle = isMidi && track.instrumentId ? getInstrument(track.instrumentId).label : null;
 
   return (
@@ -79,7 +86,7 @@ function HeaderRow({
       }}
       data-track-header={track.id}
       data-row-index={index}
-      className={`absolute left-0 right-0 cursor-pointer border-b border-zinc-800 px-2.5 transition-colors ${
+      className={`absolute left-0 right-0 cursor-pointer border-b border-zinc-800 transition-colors ${compact ? 'px-1.5' : 'px-2.5'} ${
         selected ? 'bg-[#202028]' : 'bg-[#18181b] hover:bg-zinc-800/40'
       }`}
       style={{ top: trackRowTop(index, trackHeight, 0), height: trackHeight }}
@@ -102,18 +109,18 @@ function HeaderRow({
             <button
               onClick={(e) => { e.stopPropagation(); setTrackMuted(track.id, !track.isMuted); }}
               title={track.isMuted ? 'Unmute' : 'Mute'}
-              className={`flex h-[18px] w-[18px] items-center justify-center rounded border text-[9px] font-bold transition-colors ${
+              className={`flex items-center justify-center rounded border font-bold transition-colors ${btnSize} ${
                 track.isMuted ? 'border-red-500/60 bg-red-500/20 text-red-300' : 'border-zinc-700 bg-zinc-800/80 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              {track.isMuted ? <VolumeX className="h-2.5 w-2.5" /> : 'M'}
+              {track.isMuted ? <VolumeX className={iconSize} /> : 'M'}
             </button>
 
             {audioTools && track.type !== 'text' && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleTrackSolo(track.id); }}
                 title={track.isSoloed ? 'Unsolo' : 'Solo - silences every other track'}
-                className={`flex h-[18px] w-[18px] items-center justify-center rounded border text-[9px] font-bold transition-colors ${
+                className={`flex items-center justify-center rounded border font-bold transition-colors ${btnSize} ${
                   track.isSoloed ? 'border-amber-400/60 bg-amber-400/20 text-amber-300' : 'border-zinc-700 bg-zinc-800/80 text-zinc-400 hover:bg-zinc-700'
                 }`}
               >
@@ -124,11 +131,11 @@ function HeaderRow({
             <button
               onClick={(e) => { e.stopPropagation(); updateTrack(track.id, { isLocked: !track.isLocked }); }}
               title={track.isLocked ? 'Unlock' : 'Lock'}
-              className={`flex h-[18px] w-[18px] items-center justify-center rounded border transition-colors ${
+              className={`flex items-center justify-center rounded border transition-colors ${btnSize} ${
                 track.isLocked ? 'border-amber-500/50 bg-amber-500/15 text-amber-400' : 'border-zinc-700 bg-zinc-800/80 text-zinc-500 hover:bg-zinc-700'
               }`}
             >
-              {track.isLocked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+              {track.isLocked ? <Lock className={iconSize} /> : <Unlock className={iconSize} />}
             </button>
 
             {showFader && (
@@ -170,6 +177,7 @@ export function TrackHeaders({
   const addAudioTrack = useEditorStore((s) => s.addAudioTrack);
   const audioTools = showsAudioTools(mode);
   const addMenu = useContextMenu();
+  const compact = width < 160;
 
   // One place to add a track. Beats mode hides the media panel entirely, so this
   // button has to cover instrument AND audio rather than sending you hunting
@@ -206,7 +214,7 @@ export function TrackHeaders({
           <button
             onClick={(e) => addMenu.open(e, addItems())}
             title="Add a track"
-            className="rounded border border-zinc-700 bg-zinc-800/80 px-1.5 py-0.5 text-[11px] font-bold leading-none text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
+            className="rounded border border-zinc-700 bg-zinc-800/80 px-2 py-1 text-[11px] font-bold leading-none text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100 md:px-1.5 md:py-0.5"
           >
             +
           </button>
@@ -224,6 +232,7 @@ export function TrackHeaders({
               trackHeight={trackHeight}
               selected={selectedTrackIds.includes(track.id)}
               audioTools={audioTools}
+              compact={compact}
             />
           ))}
         </div>

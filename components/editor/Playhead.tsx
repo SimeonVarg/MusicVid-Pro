@@ -13,6 +13,12 @@ interface PlayheadProps {
   scrollX: number;
   duration: number;
   onSeek: (time: number) => void;
+  /**
+   * Phones only: a thumb-wide invisible grab zone. Never on desktop - an
+   * invisible hit region 22px either side of the line would swallow ruler
+   * clicks and cycle-lane drags that used to reach the stage.
+   */
+  touchGrabZone?: boolean;
 }
 
 export function Playhead({
@@ -22,6 +28,7 @@ export function Playhead({
   scrollX,
   duration,
   onSeek,
+  touchGrabZone = false,
 }: PlayheadProps) {
   const groupRef = useRef<Konva.Group>(null);
   const x = currentTime * pixelsPerSecond + scrollX;
@@ -58,11 +65,26 @@ export function Playhead({
       onMouseDown={(event) => {
         event.cancelBubble = true;
       }}
+      onTouchStart={(event) => {
+        event.cancelBubble = true;
+      }}
       onDragEnd={(event) => {
         const nextTime = (event.target.x() - scrollX) / pixelsPerSecond;
         onSeek(Math.max(0, Math.min(duration, nextTime)));
       }}
     >
+      {/* Invisible grab zone: the visible handle is 16px, a thumb needs ~44.
+          Stops at y=28 so it never covers the cycle lane (y 29-40). */}
+      {touchGrabZone && (
+        <Rect
+          x={-22}
+          y={0}
+          width={44}
+          height={28}
+          fill="transparent"
+        />
+      )}
+
       {/* Playhead Handle */}
       <Rect
         x={-8}
