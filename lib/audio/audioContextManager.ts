@@ -34,20 +34,44 @@ export class AudioContextManager {
   }
 
   /**
-   * Total output latency in seconds — how long after we schedule a sample the
-   * user actually HEARS it. `baseLatency` is the graph/buffer cost; `outputLatency`
-   * is the device pipeline, which is where Bluetooth shows up (wired ≈ 0, BT
-   * headphones ≈ 0.15–0.3s). Returns 0 when the context doesn't exist yet or the
-   * browser doesn't report it, so callers degrade to today's behaviour.
+   * The browser's ESTIMATE of output latency in seconds — how long after we
+   * schedule a sample the user actually hears it. `baseLatency` is the graph
+   * cost; `outputLatency` is the device pipeline, which is where Bluetooth
+   * shows up.
+   *
+   * Treat this as a hint, never as the answer. It is unreliable on exactly the
+   * devices that need it:
+   *  - iOS Safari only shipped `outputLatency` in 18.4; older versions report
+   *    nothing, and WebKit returns 0 whenever the context is not actively
+   *    playing — which is the state a paused editor is in.
+   *  - Under Safari's fingerprint protection it returns a constant 512/sampleRate.
+   *  - Even when real, it comes from AVAudioSession, which under-reports
+   *    AirPods by tens of milliseconds and drifts after connect.
+   * That is why the user can set the number by hand; see `outputOffsetMs`.
    */
   static outputLatencySec(): number {
+    // Deliberately does NOT create a context: asking how late the sound is must
+    // never itself start an audio graph (it would also throw outside a browser).
     const ctx = AudioContextManager.context;
     if (!ctx) return 0;
     const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0;
     const out = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
     const total = base + out;
-    // Guard against absurd values from a misreporting driver.
-    return Number.isFinite(total) && total > 0 && total < 1 ? total : 0;
+    if (!Number.isFinite(total) || total <= 0) return 0;
+    // Clamp rather than discard: a misreport should not silently become "wired".
+    // 600ms is above the worst real measured device and above Android's own
+    // 500ms ceiling for cold output latency, so anything larger is a bad read.
+    return Math.min(total, 0.6);
+  }
+
+  /**
+   * Whether the estimate above can be believed at all right now. Both WebKit
+   * and Chromium report 0 for a context that is not rendering, so "0" from a
+   * paused editor means "unknown", not "wired".
+   */
+  static outputLatencyIsMeasurable(): boolean {
+    const ctx = AudioContextManager.context;
+    return !!ctx && ctx.state === 'running' && typeof ctx.outputLatency === 'number';
   }
 
   /**

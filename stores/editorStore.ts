@@ -223,6 +223,8 @@ export interface MusicalContext {
   metronomeVolume: number;
   countInBars: number;
   latencyCompensation: boolean;
+  /** The user's own output delay in ms; null = use the browser's estimate. */
+  outputOffsetMs: number | null;
 }
 
 export interface ExportSettings {
@@ -343,6 +345,8 @@ export interface EditorState {
   setMetronomeVolume: (volume: number) => void;
   setCountInBars: (bars: number) => void;
   setLatencyCompensation: (on: boolean) => void;
+  /** null = trust the browser's estimate; a number = the user's own value in ms. */
+  setOutputOffsetMs: (ms: number | null) => void;
   setZoom: (zoom: number, anchorX?: number) => void;
   setScrollX: (scrollX: number) => void;
   setSnapToGrid: (snap: boolean) => void;
@@ -509,6 +513,25 @@ function restoreSnapshot(set: (fn: (state: EditorState) => void) => void, snapsh
 function trimHistory(state: EditorState) {
   const drop = stepsToDrop(historyPast, state.audioTracks);
   if (drop > 0) historyPast.splice(0, drop);
+}
+
+/**
+ * How far behind the sound the picture is, in seconds.
+ *
+ * A number the user set wins over the browser's estimate, because on a phone
+ * that estimate is missing or wrong exactly when Bluetooth delay matters. 0.6s
+ * is the ceiling: worse than the worst real device, so anything beyond it is a
+ * mistake rather than a headphone.
+ */
+export function outputLatencyOf(state: {
+  musical: { latencyCompensation?: boolean; outputOffsetMs?: number | null };
+}): number {
+  if (!(state.musical.latencyCompensation ?? true)) return 0;
+  const manual = state.musical.outputOffsetMs;
+  if (typeof manual === 'number' && Number.isFinite(manual)) {
+    return Math.max(0, Math.min(600, manual)) / 1000;
+  }
+  return AudioContextManager.outputLatencySec();
 }
 
 function pushHistory(state: EditorState) {
@@ -1240,11 +1263,10 @@ export const useEditorStore = create<EditorState>()(
           set((state) => {
             const next = Math.max(0, Math.min(time, state.timeline.duration || time));
             state.timeline.currentTime = next;
-            // Seed the same latency offset the tick subtracts, or a seek would
-            // visibly jump backwards by the compensation amount.
+            // Same seed as play(): t0 - P0, with no L. The tick is the only
+            // place L belongs.
             if (state.timeline.isPlaying) {
-              const L = (state.musical.latencyCompensation ?? true) ? AudioContextManager.outputLatencySec() : 0;
-              playbackStartMs = performance.now() - (next + L) * 1000;
+              playbackStartMs = performance.now() - next * 1000;
             }
           });
           // Reschedule MIDI from the new playhead so it stays in sync after a seek.
@@ -1354,6 +1376,13 @@ export const useEditorStore = create<EditorState>()(
           set((state) => { state.musical.latencyCompensation = on; });
         },
 
+        setOutputOffsetMs: (ms: number | null) => {
+          set((state) => {
+            state.musical.outputOffsetMs =
+              ms === null || !Number.isFinite(ms) ? null : Math.max(0, Math.min(600, Math.round(ms)));
+          });
+        },
+
         setCountInBars: (bars: number) => {
           set((state) => { state.musical.countInBars = Math.max(0, Math.min(4, Math.round(bars))); });
         },
@@ -1410,9 +1439,14 @@ export const useEditorStore = create<EditorState>()(
             // the VISUAL clock by the same amount: seed the start time L ahead, then
             // subtract L when reporting, so `currentTime` tracks what you're hearing.
             // L is 0 on wired output, making this a no-op there.
-            const latency = () =>
-              (get().musical.latencyCompensation ?? true) ? AudioContextManager.outputLatencySec() : 0;
-            playbackStartMs = performance.now() - (get().timeline.currentTime + latency()) * 1000;
+            const latency = () => outputLatencyOf(get());
+            // Seeded WITHOUT L on purpose. Sound scheduled at wall time t is
+            // heard at t+L, so the position reaching the ear at t is
+            // P0 + (t - t0) - L. With the tick subtracting L below, the seed
+            // must be t0 - P0. Adding L here too made the two cancel exactly -
+            // for every value of L - so the whole compensation, its toggle and
+            // its readout had never had any observable effect.
+            playbackStartMs = performance.now() - get().timeline.currentTime * 1000;
             const tick = () => {
               const state = get();
               if (!state.timeline.isPlaying) return;
@@ -1423,7 +1457,7 @@ export const useEditorStore = create<EditorState>()(
               // Loop: when the playhead passes the loop end, jump back to the start
               // and reschedule MIDI voices + the click from there.
               if (loop && loop.end > loop.start && elapsed >= loop.end) {
-                playbackStartMs = performance.now() - (loop.start + L) * 1000;
+                playbackStartMs = performance.now() - loop.start * 1000;
                 set((draft) => { draft.timeline.currentTime = loop.start; });
                 if (state.midiTracks.length > 0) {
                   midiPlaybackEngine.start(toPlayableMidi(state.midiTracks, anyTrackSoloed(state)), loop.start, state.musical.bpm).catch(() => {});

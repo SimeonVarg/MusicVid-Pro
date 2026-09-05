@@ -17,6 +17,7 @@
 import { ensureTone, tone } from './tone';
 import { getInstrument, type InstrumentDef } from './instruments';
 import { pitchToName } from './noteUtils';
+import { releaseSecondsFor, TONE_DEFAULT_RELEASE } from './release';
 
 const SAMPLE_BASE = '/samples';
 
@@ -147,11 +148,45 @@ export function createVoice(instrumentId: string): MidiVoice {
     urls[note] = new Tone.ToneAudioBuffer(buf);
   }
   const sampler = new Tone.Sampler({ urls }).toDestination();
+
+  /**
+   * Set the release for the note about to sound, and say whether this
+   * instrument may be released at all.
+   *
+   * Sampler copies `this.release` into each voice at triggerAttack time and
+   * never reads it again, so it has to be set immediately before the attack —
+   * which is also what lets one sampler hold a pitch-dependent piano curve.
+   */
+  const armRelease = (pitch: number): number | null => {
+    const seconds = releaseSecondsFor(def.id, pitch, def.family);
+    sampler.release = seconds ?? TONE_DEFAULT_RELEASE;
+    return seconds;
+  };
+
   return {
-    trigger: (pitch, time, durationSec, velocity) =>
-      sampler.triggerAttackRelease(pitchToName(pitch), Math.max(0.05, durationSec), time, velocity),
-    attack: (pitch, velocity) => sampler.triggerAttack(pitchToName(pitch), undefined, velocity),
-    release: (pitch) => sampler.triggerRelease(pitchToName(pitch)),
+    trigger: (pitch, time, durationSec, velocity) => {
+      const seconds = armRelease(pitch);
+      if (seconds === null) {
+        // A struck bar or a plucked pizzicato has no "note off" to honour, so
+        // the written length must not cut it short: start it and let the
+        // sample reach its own end.
+        sampler.triggerAttack(pitchToName(pitch), time, velocity);
+        return;
+      }
+      sampler.triggerAttackRelease(pitchToName(pitch), Math.max(0.05, durationSec), time, velocity);
+    },
+    attack: (pitch, velocity) => {
+      armRelease(pitch);
+      sampler.triggerAttack(pitchToName(pitch), undefined, velocity);
+    },
+    release: (pitch) => {
+      // null = nothing to release. Lifting the key off a marimba does not stop
+      // the bar, and pretending otherwise is what made every instrument in the
+      // app sound like it hit a wall.
+      if (releaseSecondsFor(def.id, pitch, def.family) === null) return;
+      armRelease(pitch);
+      sampler.triggerRelease(pitchToName(pitch));
+    },
     connect: (node) => sampler.connect(node as never),
     dispose: () => sampler.dispose(),
   };

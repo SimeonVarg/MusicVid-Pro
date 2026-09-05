@@ -9,6 +9,8 @@ import { ensureTone, tone } from './tone';
 import type { MidiNote } from './noteUtils';
 import { beatsToSeconds, clampPitch } from './noteUtils';
 import { createVoice, loadInstrumentBuffers, type MidiVoice } from './toneInstruments';
+import { releaseSecondsFor } from './release';
+import { getInstrument } from './instruments';
 
 
 const clampPan = (p: number | undefined) => Math.max(-1, Math.min(1, p || 0));
@@ -30,6 +32,13 @@ interface ActiveTrack {
   gain: { gain: { value: number }; connect(n: unknown): unknown; dispose(): void };
   panner: { pan: { value: number }; toDestination(): unknown; dispose(): void };
 }
+
+/**
+ * How long to keep a one-shot preview voice alive. Our longest undampable
+ * sample (a 40-inch tam-tam) is truncated to 8s, so this covers every one of
+ * them without holding a voice open indefinitely.
+ */
+const PREVIEW_ONE_SHOT_TAIL_SEC = 8;
 
 class MidiPlaybackEngine {
   // Keyed by track id so the mixer can adjust volume/pan/mute live, without a restart.
@@ -166,9 +175,16 @@ class MidiPlaybackEngine {
     await loadInstrumentBuffers(instrumentId);
     if (!this.started) { await Tone.start(); this.started = true; }
     const voice = createVoice(instrumentId);
-    voice.trigger(clampPitch(pitch), Tone.now() + 0.02, durationSec, velocity);
-    // Dispose after the note has rung out.
-    setTimeout(() => { try { voice.dispose(); } catch { /* ignore */ } }, (durationSec + 1.5) * 1000);
+    const clamped = clampPitch(pitch);
+    voice.trigger(clamped, Tone.now() + 0.02, durationSec, velocity);
+    // Dispose only once the note has actually finished. A fixed 1.5s margin
+    // used to be plenty against Tone's 100ms default release; now that a top-
+    // octave piano note rings for 4s and a struck bar rings for as long as its
+    // sample lasts, disposing on the old schedule would chop the very tail this
+    // change exists to create.
+    const release = releaseSecondsFor(instrumentId, clamped, getInstrument(instrumentId).family);
+    const tailSec = release ?? PREVIEW_ONE_SHOT_TAIL_SEC;
+    setTimeout(() => { try { voice.dispose(); } catch { /* ignore */ } }, (durationSec + tailSec + 0.3) * 1000);
   }
 }
 

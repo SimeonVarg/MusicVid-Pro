@@ -23,9 +23,17 @@ export interface TimelineSliceState {
     metronomeVolume: number;
     /** Bars of audible count-in clicks before playback starts (0 = off). */
     countInBars: number;
-    /** Delay the visual playhead by the measured output latency so what you SEE
-     *  matches what you HEAR (Bluetooth adds ~150-300ms). No-op on wired output. */
+    /** Delay the visual playhead by the output latency so what you SEE matches
+     *  what you HEAR (Bluetooth adds ~150-300ms). No-op on wired output. */
     latencyCompensation: boolean;
+    /**
+     * The user's own output delay in milliseconds, or null to trust the
+     * browser's estimate. It exists because that estimate is wrong or missing
+     * on phones - iOS Safari reports nothing before 18.4 and returns 0 whenever
+     * the context is idle - so on the one device where Bluetooth delay actually
+     * bites, the automatic number is unusable.
+     */
+    outputOffsetMs: number | null;
   };
   timeDisplayMode: 'seconds' | 'musical' | 'ms' | 'beat' | 'frame';
   timeUnits: 'ms' | 'beat' | 'frame';
@@ -74,6 +82,7 @@ export const timelineInitialState: TimelineSliceState = {
     metronomeVolume: 0.5,
     countInBars: 0,
     latencyCompensation: true,
+    outputOffsetMs: null,
   },
   timeDisplayMode: 'seconds',
   timeUnits: 'ms',

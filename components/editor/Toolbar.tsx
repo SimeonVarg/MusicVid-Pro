@@ -59,6 +59,7 @@ export function Toolbar() {
     setMetronomeVolume,
     setCountInBars,
     setLatencyCompensation,
+    setOutputOffsetMs,
     mixerOpen,
     setMixerOpen,
     setInstrumentPickerOpen,
@@ -416,10 +417,52 @@ export function Toolbar() {
                         </span>
                       </button>
                       <p className="mt-1 text-[10px] leading-tight text-zinc-500">
-                        {detectedLatencyMs > 0
-                          ? `Detected ${detectedLatencyMs}ms output delay (Bluetooth/driver). The playhead lags to match what you hear.`
-                          : 'No output delay detected (wired). Matters on Bluetooth headphones.'}
+                        The playhead lags by this much so what you see matches what you hear.
                       </p>
+
+                      {/* The manual number is the real control. Phones either
+                          do not report their Bluetooth delay or report it
+                          wrong, so the browser's figure is shown as a hint and
+                          never as the answer. */}
+                      {(musical.latencyCompensation ?? true) && (
+                        <div className="mt-2">
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-[11px] text-zinc-300">Output delay</span>
+                            <span className="font-mono text-[11px] text-signal-300">
+                              {musical.outputOffsetMs ?? detectedLatencyMs} ms
+                              {musical.outputOffsetMs === null && ' (auto)'}
+                            </span>
+                          </div>
+                          <input
+                            type="range" min={0} max={400} step={5}
+                            value={musical.outputOffsetMs ?? detectedLatencyMs}
+                            onChange={(e) => setOutputOffsetMs(Number(e.target.value))}
+                            className="h-2 w-full cursor-pointer accent-signal-400"
+                            aria-label="Output delay in milliseconds"
+                          />
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="text-[10px] leading-tight text-zinc-500">
+                              {detectedLatencyMs > 0
+                                ? `Browser reports ${detectedLatencyMs} ms`
+                                : 'Browser reports nothing yet — press play once, or set it here.'}
+                            </span>
+                            {musical.outputOffsetMs !== null && (
+                              <button
+                                onClick={() => setOutputOffsetMs(null)}
+                                className="shrink-0 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                              >
+                                Auto
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-1.5 text-[10px] leading-tight text-zinc-600">
+                            Bluetooth headphones are typically 150–250 ms. Nudge until the
+                            playhead hits the beat you hear. Playing live over Bluetooth will
+                            still feel late — that delay is in the headphones and nothing in
+                            the browser can remove it.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Metronome volume */}
